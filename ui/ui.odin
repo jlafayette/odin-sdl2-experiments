@@ -1,12 +1,13 @@
 package main
 
 import "core:fmt"
-import "core:math"
 import "core:time"
 import "core:strings"
 
 import "vendor:sdl2"
 import mu "vendor:microui"
+
+import "color"
 
 
 SCREEN_WIDTH : i32 = 1280
@@ -87,7 +88,7 @@ main :: proc() {
     start : f64
     end : f64
 
-    r, g, b: f32 = 0.5, 0.5, 0.5
+    bg := [3]f32{0.5, 0.5, 0.5}
 
     game_loop : for {
         start = get_time()
@@ -133,7 +134,7 @@ main :: proc() {
         // Render
         // Draw UI stuff here
         mu.begin(&mu_ctx)
-        mu_update(&mu_ctx, &r, &g, &b)
+        mu_update(&mu_ctx, &bg)
         mu.end(&mu_ctx)
 
         // Timing (avoid looping too fast)
@@ -143,7 +144,8 @@ main :: proc() {
         end = get_time()
         game.fps = 1000 / (end - start)
 
-        render(&mu_ctx, renderer, atlas_texture, {c_convert(r),c_convert(g),c_convert(b), 255})
+        c := color.toU8(bg)
+        render(&mu_ctx, renderer, atlas_texture, {c.r, c.g, c.b, 255})
 
         free_all(context.temp_allocator)
     }
@@ -166,13 +168,7 @@ get_time :: proc() -> f64 {
 
 STEP : f32 = 1 / 255
 
-
-c_convert :: proc(f: f32) -> u8 {
-    return u8(math.round(f * 255))
-}
-
-// mu_update :: proc(ctx: ^mu.Context, bg: ^mu.Color) {
-mu_update :: proc(ctx: ^mu.Context, r, g, b: ^f32) {
+mu_update :: proc(ctx: ^mu.Context, bg: ^[3]f32) {
     @(static) opts := mu.Options{}
 
     if mu.window(ctx, "Demo Window", {40, 40, 300, 450}, opts) {
@@ -191,9 +187,9 @@ mu_update :: proc(ctx: ^mu.Context, r, g, b: ^f32) {
         }
 
         mu.layout_row(ctx, {-1})
-        mu.slider(ctx, r, 0, 1, STEP)
-        mu.slider(ctx, g, 0, 1, STEP)
-        mu.slider(ctx, b, 0, 1, STEP)
+        mu.slider(ctx, &bg.r, 0, 1, STEP)
+        mu.slider(ctx, &bg.g, 0, 1, STEP)
+        mu.slider(ctx, &bg.b, 0, 1, STEP)
     }
 }
 
