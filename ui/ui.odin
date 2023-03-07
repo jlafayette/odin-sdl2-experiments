@@ -153,15 +153,6 @@ main :: proc() {
     }
 }
 
-handle_exit :: proc(event : ^sdl2.Event) -> bool {
-    #partial switch event.type {
-        case .QUIT:
-            return true
-        case .KEYDOWN:
-            return event.key.keysym.scancode == .ESCAPE
-    }
-    return false
-}
 
 get_time :: proc() -> f64 {
     return f64(sdl2.GetPerformanceCounter()) * 1000 / perf_frequency
