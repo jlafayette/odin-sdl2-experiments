@@ -88,6 +88,7 @@ main :: proc() {
     start : f64
     end : f64
 
+    // Background color in HSV space
     bg := [3]f32{180, 0.5, 0.5}
 
     game_loop : for {
@@ -144,8 +145,8 @@ main :: proc() {
         end = get_time()
         game.fps = 1000 / (end - start)
 
-        c1 := color.Hsv(bg)
-        c := color.toU8(c1)
+        c1 := color.hsv_to_rgb(bg)
+        c := color.to_u8(c1)
         render(&mu_ctx, renderer, atlas_texture, {c.r, c.g, c.b, 255})
 
         free_all(context.temp_allocator)

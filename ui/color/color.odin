@@ -2,14 +2,15 @@ package color
 
 import "core:math"
 
-
-toU8 :: proc(c: [3]f32) -> [3]u8 {
+// Convert RGB
+to_u8 :: proc(c: [3]f32) -> [3]u8 {
     d := c * 255
     return [3]u8{u8(math.round(d.r)), u8(math.round(d.g)), u8(math.round(d.b))}
 }
 
 // Adapted from https://github.com/lucasb-eyer/go-colorful
-Hsv :: proc(hsv: [3]f32) -> [3]f32 {
+// Convert HSV (0-360, 0-1, 0-1) to RGB 0-1
+hsv_to_rgb :: proc(hsv: [3]f32) -> [3]f32 {
     h, s, v := hsv.x, hsv.y, hsv.z
     Hp := h / 60.0
     C := v * s
