@@ -88,7 +88,7 @@ main :: proc() {
     start : f64
     end : f64
 
-    bg := [3]f32{0.5, 0.5, 0.5}
+    bg := [3]f32{180, 0.5, 0.5}
 
     game_loop : for {
         start = get_time()
@@ -144,7 +144,8 @@ main :: proc() {
         end = get_time()
         game.fps = 1000 / (end - start)
 
-        c := color.toU8(bg)
+        c1 := color.Hsv(bg)
+        c := color.toU8(c1)
         render(&mu_ctx, renderer, atlas_texture, {c.r, c.g, c.b, 255})
 
         free_all(context.temp_allocator)
@@ -187,7 +188,7 @@ mu_update :: proc(ctx: ^mu.Context, bg: ^[3]f32) {
         }
 
         mu.layout_row(ctx, {-1})
-        mu.slider(ctx, &bg.r, 0, 1, STEP)
+        mu.slider(ctx, &bg.r, 0, 360, 1)
         mu.slider(ctx, &bg.g, 0, 1, STEP)
         mu.slider(ctx, &bg.b, 0, 1, STEP)
     }
