@@ -26,6 +26,48 @@ main :: proc() {
 	assert(sdl2.Init({.VIDEO}) == 0, sdl2.GetErrorString())
 	defer sdl2.Quit()
 
+	display_count := sdl2.GetNumVideoDisplays()
+	fmt.println("Display count:", display_count)
+	for display_index: i32 = 0; display_index < display_count; display_index += 1 {
+		display_mode_count := sdl2.GetNumDisplayModes(display_index)
+		fmt.printf("%d: %d\n", display_index, display_mode_count)
+
+		if display_mode_count < 1 {
+			fmt.eprintln("Display mode count:", display_mode_count)
+			continue
+		}
+		for i: i32 = 0; i < display_mode_count; i += 1 {
+			mode: sdl2.DisplayMode
+			err := sdl2.GetDisplayMode(display_index, i, &mode)
+			if err != 0 {
+				fmt.printf(
+					"GetDisplayMode(%d, %d, &mode) failed %s",
+					display_index,
+					i,
+					sdl2.GetErrorString(),
+				)
+				continue
+			}
+			f := mode.format
+			fmt.printf(
+				"Mode: %2d %d format: %s %4dx%4d refresh: %d\n",
+				i,
+				f,
+				sdl2.GetPixelFormatName(f),
+				mode.w,
+				mode.h,
+				mode.refresh_rate,
+			)
+		}
+	}
+
+
+	displayMode: sdl2.DisplayMode
+	sdl2.GetCurrentDisplayMode(1, &displayMode)
+	screen_width := displayMode.w
+	screen_height := displayMode.h
+	// fmt.println(displayMode, displayMode.w, displayMode.h)
+
 	window := sdl2.CreateWindow(
 		"UI Example",
 		sdl2.WINDOWPOS_UNDEFINED,
@@ -36,6 +78,7 @@ main :: proc() {
 	)
 	assert(window != nil, sdl2.GetErrorString())
 	defer sdl2.DestroyWindow(window)
+	// sdl2.SetWindowFullscreen(window, sdl2.WINDOW_FULLSCREEN)
 
 	sdl2.GL_SetAttribute(.CONTEXT_PROFILE_MASK, i32(sdl2.GLprofile.CORE))
 	sdl2.GL_SetAttribute(.CONTEXT_MAJOR_VERSION, GL_VERSION_MAJOR)
