@@ -13,7 +13,7 @@ GL_VERSION_MINOR :: 3
 
 SCREEN_WIDTH: i32 = 1280
 SCREEN_HEIGHT: i32 = 960
-TARGET_DT: f64 = 1000 / 60
+TARGET_DT: f64 = 1000 / 59
 perf_frequency: f64
 
 Game :: struct {
@@ -57,6 +57,11 @@ main :: proc() {
 
 	uniforms := gl.get_uniforms_from_program(program)
 	defer delete(uniforms)
+
+	vao: u32
+	gl.GenVertexArrays(1, &vao)
+	defer gl.DeleteVertexArrays(1, &vao)
+	gl.BindVertexArray(vao)
 
 	// OpenGL buffers
 	vbo, ebo: u32
@@ -103,7 +108,7 @@ main :: proc() {
 	start_tick := time.tick_now()
 
 	game_loop: for {
-		start = get_time()
+		// start = get_time()
 
 		duration := time.tick_since(start_tick)
 		t := f32(time.duration_seconds(duration))
@@ -151,12 +156,12 @@ main :: proc() {
 
 		free_all(context.temp_allocator)
 
-		// Timing (avoid looping too fast)
-		end = get_time()
-		to_sleep := time.Duration((TARGET_DT - (end - start)) * f64(time.Millisecond))
-		time.accurate_sleep(to_sleep)
-		end = get_time()
-		game.fps = 1000 / (end - start)
+		// // Timing (avoid looping too fast)
+		// end = get_time()
+		// to_sleep := time.Duration((TARGET_DT - (end - start)) * f64(time.Millisecond))
+		// time.accurate_sleep(to_sleep)
+		// end = get_time()
+		// game.fps = 1000 / (end - start)
 	}
 }
 
