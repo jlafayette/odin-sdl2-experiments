@@ -223,4 +223,7 @@ launch :: proc() {
 	defer sdl2.DestroyRenderer(renderer)
 
 	dynamic_text.run(win.w, win.h, renderer, 60)
+	// discard any events from the launched window
+	event: sdl2.Event
+	for sdl2.PollEvent(&event) do continue
 }
