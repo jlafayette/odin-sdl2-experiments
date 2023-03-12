@@ -10,17 +10,20 @@ import "dynamic_text"
 WindowSettings :: struct {
 	w: i32,
 	h: i32,
+	refresh_rate: i32,
 }
-win := WindowSettings {
-	w = 640,
-	h = 480,
-}
-TARGET_DT: f64 = 1000 / 60
 
 
 main :: proc() {
 	assert(sdl2.Init({.VIDEO}) == 0, sdl2.GetErrorString())
 	defer sdl2.Quit()
+
+	win := WindowSettings {
+		w = 640,
+		h = 480,
+		refresh_rate = 60,
+	}
+	target_dt: f64 = 1000 / f64(win.refresh_rate)
 
 	window := sdl2.CreateWindow(
 		"Laucher",
@@ -125,7 +128,7 @@ main :: proc() {
 
 		free_all(context.temp_allocator)
 		end = get_time()
-		to_sleep := time.Duration((TARGET_DT - (end - start)) * f64(time.Millisecond))
+		to_sleep := time.Duration((target_dt - (end - start)) * f64(time.Millisecond))
 		time.accurate_sleep(to_sleep)
 	}
 }
@@ -223,6 +226,7 @@ launch :: proc() {
 	defer sdl2.DestroyRenderer(renderer)
 
 	dynamic_text.run(win.w, win.h, renderer, 60)
+
 	// discard any events from the launched window
 	event: sdl2.Event
 	for sdl2.PollEvent(&event) do continue
