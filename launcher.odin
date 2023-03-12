@@ -13,9 +13,16 @@ WindowSettings :: struct {
 	refresh_rate: i32,
 }
 
+UiDisplay :: struct {
+	label:   string,
+	index:   i32,
+	checked: bool,
+}
+
 State :: struct {
 	display_count:          i32,
 	selected_display_index: i32,
+	ui_displays:            [dynamic]UiDisplay,
 }
 
 
@@ -25,8 +32,22 @@ main :: proc() {
 
 	log_display_modes()
 
-	state := State{}
-	state.display_count = sdl2.GetNumVideoDisplays()
+	display_count := sdl2.GetNumVideoDisplays()
+	ui_displays := make([dynamic]UiDisplay, display_count, display_count)
+	prev_checked := make([dynamic]bool, display_count, display_count)
+	defer delete(prev_checked)
+	for i: i32 = 0; i < display_count; i += 1 {
+		ui_displays[i].label = fmt.aprintf("%d", i)
+		ui_displays[i].index = i
+		checked := true if i == 0 else false
+		ui_displays[i].checked = checked
+		prev_checked[i] = checked
+	}
+	state := State{display_count, 0, ui_displays}
+	// TODO: properly free state (not really needed since by then the program
+	//       is exiting, but it would be a good learning exercise)
+	// state := create_state(display_count)
+	// defer free_state(state)
 
 	win := WindowSettings {
 		w            = 640,
@@ -130,8 +151,30 @@ main :: proc() {
 			}
 		}
 
+		// resolve checkbox arrays
+		// TODO: create microui 
+		{
+			prev_sel: i32 = state.selected_display_index
+			new_sel: i32 = prev_sel
+			for prev, i in prev_checked {
+				new := state.ui_displays[i].checked
+				if new != prev {
+					fmt.printf("checkbox %d changed from %t to %t\n", i, prev, new)
+					if new {
+						new_sel = i32(i)
+					}
+				}
+			}
+			for _, i in prev_checked {
+				checked := i32(i) == new_sel
+				state.ui_displays[i].checked = checked
+				prev_checked[i] = checked
+			}
+			state.selected_display_index = new_sel
+		}
+
 		mu.begin(&mu_ctx)
-		mu_update(&mu_ctx, &win)
+		mu_update(&mu_ctx, &win, &state)
 		mu.end(&mu_ctx)
 
 		render(&mu_ctx, renderer, atlas_texture)
@@ -147,13 +190,18 @@ get_time :: proc() -> f64 {
 	return f64(sdl2.GetPerformanceCounter()) * 1000 / f64(sdl2.GetPerformanceFrequency())
 }
 
-mu_update :: proc(ctx: ^mu.Context, win: ^WindowSettings) {
+mu_update :: proc(ctx: ^mu.Context, win: ^WindowSettings, state: ^State) {
 	@(static)
 	opts := mu.Options{.NO_CLOSE, .NO_TITLE, .NO_RESIZE, .ALIGN_CENTER}
 	if mu.window(ctx, "Launcher", {0, 0, win.w, win.h}, opts) {
 		mu.layout_row(ctx, {-1})
 		if .SUBMIT in mu.button(ctx, "Dynamic Text") {
 			launch()
+		}
+		mu.layout_row(ctx, {55, 40, 40, 40, 40})
+		mu.label(ctx, "Displays:")
+		for _, i in state.ui_displays {
+			mu.checkbox(ctx, state.ui_displays[i].label, &state.ui_displays[i].checked)
 		}
 	}
 }
