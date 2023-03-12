@@ -121,7 +121,7 @@ main :: proc() {
 		}
 
 		mu.begin(&mu_ctx)
-		mu_update(&mu_ctx)
+		mu_update(&mu_ctx, &win)
 		mu.end(&mu_ctx)
 
 		render(&mu_ctx, renderer, atlas_texture)
@@ -137,7 +137,7 @@ get_time :: proc() -> f64 {
 	return f64(sdl2.GetPerformanceCounter()) * 1000 / f64(sdl2.GetPerformanceFrequency())
 }
 
-mu_update :: proc(ctx: ^mu.Context) {
+mu_update :: proc(ctx: ^mu.Context, win: ^WindowSettings) {
 	@(static)
 	opts := mu.Options{.NO_CLOSE, .NO_TITLE, .NO_RESIZE, .ALIGN_CENTER}
 	if mu.window(ctx, "Launcher", {0, 0, win.w, win.h}, opts) {
