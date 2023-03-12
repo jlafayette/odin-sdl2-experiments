@@ -8,9 +8,14 @@ import mu "vendor:microui"
 import "dynamic_text"
 
 WindowSettings :: struct {
-	w: i32,
-	h: i32,
+	w:            i32,
+	h:            i32,
 	refresh_rate: i32,
+}
+
+State :: struct {
+	display_count:          i32,
+	selected_display_index: i32,
 }
 
 
@@ -18,9 +23,14 @@ main :: proc() {
 	assert(sdl2.Init({.VIDEO}) == 0, sdl2.GetErrorString())
 	defer sdl2.Quit()
 
+	log_display_modes()
+
+	state := State{}
+	state.display_count = sdl2.GetNumVideoDisplays()
+
 	win := WindowSettings {
-		w = 640,
-		h = 480,
+		w            = 640,
+		h            = 480,
 		refresh_rate = 60,
 	}
 	target_dt: f64 = 1000 / f64(win.refresh_rate)
@@ -230,4 +240,42 @@ launch :: proc() {
 	// discard any events from the launched window
 	event: sdl2.Event
 	for sdl2.PollEvent(&event) do continue
+}
+
+
+log_display_modes :: proc() {
+	display_count := sdl2.GetNumVideoDisplays()
+	fmt.println("Display count:", display_count)
+	for display_index: i32 = 0; display_index < display_count; display_index += 1 {
+		display_mode_count := sdl2.GetNumDisplayModes(display_index)
+		fmt.printf("%d: %d\n", display_index, display_mode_count)
+
+		if display_mode_count < 1 {
+			fmt.eprintln("Display mode count:", display_mode_count)
+			continue
+		}
+		for i: i32 = 0; i < display_mode_count; i += 1 {
+			mode: sdl2.DisplayMode
+			err := sdl2.GetDisplayMode(display_index, i, &mode)
+			if err != 0 {
+				fmt.printf(
+					"GetDisplayMode(%d, %d, &mode) failed %s",
+					display_index,
+					i,
+					sdl2.GetErrorString(),
+				)
+				continue
+			}
+			f := mode.format
+			fmt.printf(
+				"Mode: %2d %d format: %s %4dx%4d refresh: %d\n",
+				i,
+				f,
+				sdl2.GetPixelFormatName(f),
+				mode.w,
+				mode.h,
+				mode.refresh_rate,
+			)
+		}
+	}
 }
