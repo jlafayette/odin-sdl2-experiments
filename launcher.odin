@@ -5,6 +5,8 @@ import "core:time"
 import "vendor:sdl2"
 import mu "vendor:microui"
 
+import "dynamic_text"
+
 WindowSettings :: struct {
 	w: i32,
 	h: i32,
@@ -138,7 +140,7 @@ mu_update :: proc(ctx: ^mu.Context) {
 	if mu.window(ctx, "Launcher", {0, 0, win.w, win.h}, opts) {
 		mu.layout_row(ctx, {-1})
 		if .SUBMIT in mu.button(ctx, "Dynamic Text") {
-			fmt.println("TODO: launch text demo")
+			launch()
 		}
 	}
 }
@@ -198,4 +200,27 @@ render :: proc(ctx: ^mu.Context, renderer: ^sdl2.Renderer, atlas_texture: ^sdl2.
 		}
 	}
 	sdl2.RenderPresent(renderer)
+}
+
+launch :: proc() {
+	win := WindowSettings {
+		w = 1200,
+		h = 800,
+	}
+	window := sdl2.CreateWindow(
+		"Dynamic Text",
+		sdl2.WINDOWPOS_UNDEFINED,
+		sdl2.WINDOWPOS_UNDEFINED,
+		win.w,
+		win.h,
+		{.SHOWN},
+	)
+	assert(window != nil, sdl2.GetErrorString())
+	defer sdl2.DestroyWindow(window)
+
+	renderer := sdl2.CreateRenderer(window, -1, sdl2.RENDERER_ACCELERATED)
+	assert(renderer != nil, sdl2.GetErrorString())
+	defer sdl2.DestroyRenderer(renderer)
+
+	dynamic_text.run(win.w, win.h, renderer, 60)
 }
