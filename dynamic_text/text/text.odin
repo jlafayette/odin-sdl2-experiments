@@ -37,9 +37,9 @@ Drawer :: struct {
 }
 
 @(private)
-DEBUG_TTF :: "fonts/Terminal.ttf"
+DEBUG_TTF :: "dynamic_text/fonts/Terminal.ttf"
 @(private)
-DEFAULT_TTF :: "fonts/Consola.ttf"
+DEFAULT_TTF :: "dynamic_text/fonts/Consola.ttf"
 
 create_drawer :: proc(debug: bool, font_size: i32, renderer: ^sdl2.Renderer) -> ^Drawer {
 	char_map: map[rune]Text = make(map[rune]Text)

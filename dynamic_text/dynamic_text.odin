@@ -1,4 +1,4 @@
-package main
+package dynamic_text
 
 import "core:fmt"
 import "core:time"
@@ -9,34 +9,23 @@ import "vendor:sdl2/ttf"
 
 import "text"
 
-
-SCREEN_WIDTH: i32 = 1280
-SCREEN_HEIGHT: i32 = 960
-TARGET_DT: f64 = 1000 / 60
-perf_frequency: f64
-
 Game :: struct {
 	fps:             f64,
 	text_input:      string,
 	text_size_index: int,
 }
-game := Game {
-	text_input      = "Try typing something... ",
-	text_size_index = 3,
-}
 
 main :: proc() {
-
-	assert(sdl2.Init(sdl2.INIT_VIDEO) == 0, sdl2.GetErrorString())
-	defer sdl2.Quit()
+	window_width : i32 = 1200
+	window_height: i32 = 800
 
 	window := sdl2.CreateWindow(
-		"Example Game",
+		"Dynamic Text",
 		sdl2.WINDOWPOS_UNDEFINED,
 		sdl2.WINDOWPOS_UNDEFINED,
-		SCREEN_WIDTH,
-		SCREEN_HEIGHT,
-		sdl2.WINDOW_SHOWN,
+		window_width,
+		window_height,
+		{.SHOWN},
 	)
 	assert(window != nil, sdl2.GetErrorString())
 	defer sdl2.DestroyWindow(window)
@@ -44,6 +33,19 @@ main :: proc() {
 	renderer := sdl2.CreateRenderer(window, -1, sdl2.RENDERER_ACCELERATED)
 	assert(renderer != nil, sdl2.GetErrorString())
 	defer sdl2.DestroyRenderer(renderer)
+
+	run(window_width, window_height, renderer, 60)
+}
+
+
+run :: proc(window_width: i32, window_height: i32, renderer: ^sdl2.Renderer, refresh_rate: i32) {
+
+	target_dt: f64 = 1000 / f64(refresh_rate)
+
+	game := Game {
+		text_input      = "Try typing something... ",
+		text_size_index = 3,
+	}
 
 	ttf_init_result := ttf.Init()
 	assert(ttf_init_result == 0, sdl2.GetErrorString())
@@ -56,7 +58,7 @@ main :: proc() {
 	text_sizes := [7]i32{12, 18, 24, 36, 48, 60, 72}
 	text_drawers: [7]^text.Drawer
 	for i in 0 ..< len(text_drawers) {
-		text_drawer := text.create_drawer(true, text_sizes[i], renderer)
+		text_drawer := text.create_drawer(false, text_sizes[i], renderer)
 		assert(text_drawer != nil, "error creating text.Drawer")
 		text_drawers[i] = text_drawer
 	}
@@ -66,18 +68,28 @@ main :: proc() {
 		}
 	}
 
-	perf_frequency = f64(sdl2.GetPerformanceFrequency())
+	perf_frequency := f64(sdl2.GetPerformanceFrequency())
 	start: f64
 	end: f64
-
-	event: sdl2.Event
 
 	game_loop: for {
 		start = get_time()
 		// Update
 		// Handle input events
+		event: sdl2.Event
 		for sdl2.PollEvent(&event) {
-			if handle_exit(&event) {break game_loop}
+			#partial switch event.type {
+			case .QUIT:
+				break game_loop
+			case .WINDOWEVENT:
+				if event.window.event == .CLOSE {
+					sdl2.PushEvent(&sdl2.Event{type = .QUIT})
+				}
+			case .KEYUP:
+				if event.key.keysym.scancode == .ESCAPE {
+					sdl2.PushEvent(&sdl2.Event{type = .QUIT})
+				}
+			}
 			game.text_input = handle_key_press(&event, game.text_input)
 			{
 				new_index := handle_change_text_size(&event, game.text_size_index)
@@ -96,21 +108,21 @@ main :: proc() {
 			text_drawers[game.text_size_index],
 			&game.text_input,
 			text.Pos{100, 100},
-			SCREEN_WIDTH - 200,
+			window_width - 200,
 		)
-
-		// Timing (avoid looping too fast)
-		end = get_time()
-		to_sleep := time.Duration((TARGET_DT - (end - start)) * f64(time.Millisecond))
-		time.accurate_sleep(to_sleep)
-		end = get_time()
-		game.fps = 1000 / (end - start)
 
 		sdl2.RenderPresent(renderer)
 		sdl2.SetRenderDrawColor(renderer, 0, 0, 0, 100)
 		sdl2.RenderClear(renderer)
 
 		free_all(context.temp_allocator)
+
+		// Timing (avoid looping too fast)
+		end = get_time()
+		to_sleep := time.Duration((target_dt - (end - start)) * f64(time.Millisecond))
+		time.accurate_sleep(to_sleep)
+		end = get_time()
+		game.fps = 1000 / (end - start)
 	}
 }
 
@@ -118,7 +130,7 @@ handle_exit :: proc(event: ^sdl2.Event) -> bool {
 	#partial switch event.type {
 	case .QUIT:
 		return true
-	case .KEYDOWN:
+	case .KEYUP:
 		return event.key.keysym.scancode == .ESCAPE
 	}
 	return false
@@ -152,5 +164,5 @@ handle_change_text_size :: proc(event: ^sdl2.Event, current_size: int) -> int {
 }
 
 get_time :: proc() -> f64 {
-	return f64(sdl2.GetPerformanceCounter()) * 1000 / perf_frequency
+	return f64(sdl2.GetPerformanceCounter()) * 1000 / f64(sdl2.GetPerformanceFrequency())
 }
