@@ -1,6 +1,7 @@
 package launcher
 
 import "core:fmt"
+import "core:math"
 import "core:time"
 import "vendor:sdl2"
 import mu "vendor:microui"
@@ -19,10 +20,85 @@ UiDisplay :: struct {
 	checked: bool,
 }
 
+UiRes :: struct {
+	label:   string,
+	w:       i32,
+	h:       i32,
+	checked: bool,
+}
+
+UiResOptions :: struct {
+	display_index: i32,
+	sel:           i32,
+	dyn:           [dynamic]UiRes,
+	prev_checked:  [dynamic]bool,
+}
+
+create_ui_res_options :: proc(display_index: i32) -> UiResOptions {
+	display_mode_count := get_display_mode_count(display_index)
+	ui_res := make([dynamic]UiRes, 0, 32)
+	ui_res_prev_checked := make([dynamic]bool, 0, 32)
+	mode: sdl2.DisplayMode
+	for i: i32 = 0; i < display_mode_count; i += 1 {
+		last_w: i32 = 0
+		last_h: i32 = 0
+		if len(ui_res) > 0 {
+			res_i := len(ui_res) - 1
+			last_w = ui_res[res_i].w
+			last_h = ui_res[res_i].h
+		}
+		err := sdl2.GetDisplayMode(display_index, i, &mode)
+		if err != 0 {
+			fmt.printf(
+				"GetDisplayMode(%d, %d, &mode) failed %s",
+				display_index,
+				i,
+				sdl2.GetErrorString(),
+			)
+			continue
+		}
+		if last_h != mode.h && last_w != mode.w {
+			append(&ui_res, UiRes{fmt.aprintf("%dx%d", mode.w, mode.h), mode.w, mode.h, false})
+			append(&ui_res_prev_checked, false)
+		}
+	}
+	if len(ui_res_prev_checked) > 0 {
+		ui_res_prev_checked[0] = true
+	}
+	// fmt.println("ui_res:", ui_res)
+	return UiResOptions{display_index, 0, ui_res, ui_res_prev_checked}
+}
+
+update_ui_res_options :: proc(opts: ^UiResOptions) {
+	prev_idx: i32 = opts.sel
+	new_idx: i32 = prev_idx
+	for prev, i in opts.prev_checked {
+		new := opts.dyn[i].checked
+		if new != prev {
+			fmt.printf("UiRes checkbox %d edited: %t->%t\n", i, prev, new)
+			if new {
+				new_idx = i32(i)
+			}
+		}
+	}
+	for _, i in opts.prev_checked {
+		checked := i32(i) == new_idx
+		opts.dyn[i].checked = checked
+		opts.prev_checked[i] = checked
+	}
+	opts.sel = new_idx
+}
+
+destroy_ui_res_options :: proc(opts: ^UiResOptions) {
+
+}
+
 State :: struct {
 	display_count:          i32,
 	selected_display_index: i32,
+	selected_res_index:     i32,
 	ui_displays:            [dynamic]UiDisplay,
+	ui_res:                 [dynamic]UiRes,
 }
 
 
@@ -30,7 +106,7 @@ main :: proc() {
 	assert(sdl2.Init({.VIDEO}) == 0, sdl2.GetErrorString())
 	defer sdl2.Quit()
 
-	log_display_modes()
+	// log_display_modes()
 
 	display_count := sdl2.GetNumVideoDisplays()
 	ui_displays := make([dynamic]UiDisplay, display_count, display_count)
@@ -39,11 +115,43 @@ main :: proc() {
 	for i: i32 = 0; i < display_count; i += 1 {
 		ui_displays[i].label = fmt.aprintf("%d", i)
 		ui_displays[i].index = i
-		checked := true if i == 0 else false
+		checked := i == 0
 		ui_displays[i].checked = checked
 		prev_checked[i] = checked
 	}
-	state := State{display_count, 0, ui_displays}
+	display_index: i32 = 0
+	display_mode_count := get_display_mode_count(display_index)
+	ui_res := make([dynamic]UiRes, 0, 32)
+	ui_res_prev_checked := make([dynamic]bool, 0, 32)
+	mode: sdl2.DisplayMode
+	for i: i32 = 0; i < display_mode_count; i += 1 {
+		last_w: i32 = 0
+		last_h: i32 = 0
+		if len(ui_res) > 0 {
+			res_i := len(ui_res) - 1
+			last_w = ui_res[res_i].w
+			last_h = ui_res[res_i].h
+		}
+		err := sdl2.GetDisplayMode(display_index, i, &mode)
+		if err != 0 {
+			fmt.printf(
+				"GetDisplayMode(%d, %d, &mode) failed %s",
+				display_index,
+				i,
+				sdl2.GetErrorString(),
+			)
+			continue
+		}
+		if last_h != mode.h && last_w != mode.w {
+			append(&ui_res, UiRes{fmt.aprintf("%dx%d", mode.w, mode.h), mode.w, mode.h, false})
+			append(&ui_res_prev_checked, false)
+		}
+	}
+	if len(ui_res_prev_checked) > 0 {
+		ui_res_prev_checked[0] = true
+	}
+	fmt.println("ui_res:", ui_res)
+	state := State{display_count, display_index, 0, ui_displays, ui_res}
 	// TODO: properly free state (not really needed since by then the program
 	//       is exiting, but it would be a good learning exercise)
 	// state := create_state(display_count)
@@ -172,6 +280,25 @@ main :: proc() {
 			}
 			state.selected_display_index = new_sel
 		}
+		{
+			prev_idx: i32 = state.selected_res_index
+			new_idx: i32 = prev_idx
+			for prev, i in ui_res_prev_checked {
+				new := state.ui_res[i].checked
+				if new != prev {
+					fmt.printf("UiRes checkbox %d edited: %t->%t\n", i, prev, new)
+					if new {
+						new_idx = i32(i)
+					}
+				}
+			}
+			for _, i in ui_res_prev_checked {
+				checked := i32(i) == new_idx
+				state.ui_res[i].checked = checked
+				ui_res_prev_checked[i] = checked
+			}
+			state.selected_res_index = new_idx
+		}
 
 		mu.begin(&mu_ctx)
 		mu_update(&mu_ctx, &win, &state)
@@ -198,10 +325,20 @@ mu_update :: proc(ctx: ^mu.Context, win: ^WindowSettings, state: ^State) {
 		if .SUBMIT in mu.button(ctx, "Dynamic Text") {
 			launch()
 		}
-		mu.layout_row(ctx, {55, 40, 40, 40, 40})
+		mu.layout_row(ctx, {75, 40, 40, 40, 40})
 		mu.label(ctx, "Displays:")
 		for _, i in state.ui_displays {
 			mu.checkbox(ctx, state.ui_displays[i].label, &state.ui_displays[i].checked)
+		}
+		mu.layout_row(ctx, {75, 85, 85, 85, 85, 85})
+		mu.label(ctx, "Resolution:")
+		for _, i in state.ui_res {
+			if i % 5 == 0 && i != 0 {
+				mu.layout_row(ctx, {75, 85, 85, 85, 85, 85})
+				mu.label(ctx, "")
+			}
+			mu.checkbox(ctx, state.ui_res[i].label, &state.ui_res[i].checked)
+
 		}
 	}
 }
@@ -290,16 +427,22 @@ launch :: proc() {
 	for sdl2.PollEvent(&event) do continue
 }
 
+get_display_mode_count :: proc(index: i32) -> i32 {
+	display_mode_count := sdl2.GetNumDisplayModes(index)
+	if display_mode_count < 1 {
+		fmt.eprintln("Display mode count:", display_mode_count)
+		return 0
+	}
+	return display_mode_count
+}
 
 log_display_modes :: proc() {
 	display_count := sdl2.GetNumVideoDisplays()
 	fmt.println("Display count:", display_count)
 	for display_index: i32 = 0; display_index < display_count; display_index += 1 {
-		display_mode_count := sdl2.GetNumDisplayModes(display_index)
+		display_mode_count := get_display_mode_count(display_index)
 		fmt.printf("%d: %d\n", display_index, display_mode_count)
-
 		if display_mode_count < 1 {
-			fmt.eprintln("Display mode count:", display_mode_count)
 			continue
 		}
 		for i: i32 = 0; i < display_mode_count; i += 1 {
