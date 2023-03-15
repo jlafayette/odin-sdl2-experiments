@@ -31,23 +31,22 @@ UiRes :: struct {
 UiResOptions :: struct {
 	display_index: i32,
 	sel:           i32,
-	values:        []UiRes,
-	backing_array: [dynamic]UiRes,
+	values:        [dynamic]UiRes,
 	prev_checked:  [dynamic]bool,
 }
 
 create_ui_res_options :: proc(display_index: i32) -> UiResOptions {
 	display_mode_count := get_display_mode_count(display_index)
-	backing_array := make([dynamic]UiRes, 0, 32)
+	values := make([dynamic]UiRes, 0, 32)
 	ui_res_prev_checked := make([dynamic]bool, 0, 32)
 	mode: sdl2.DisplayMode
 	for i: i32 = 0; i < display_mode_count; i += 1 {
 		last_w: i32 = 0
 		last_h: i32 = 0
-		if len(backing_array) > 0 {
-			res_i := len(backing_array) - 1
-			last_w = backing_array[res_i].w
-			last_h = backing_array[res_i].h
+		if len(values) > 0 {
+			res_i := len(values) - 1
+			last_w = values[res_i].w
+			last_h = values[res_i].h
 		}
 		err := sdl2.GetDisplayMode(display_index, i, &mode)
 		if err != 0 {
@@ -60,72 +59,54 @@ create_ui_res_options :: proc(display_index: i32) -> UiResOptions {
 			continue
 		}
 		if last_h != mode.h && last_w != mode.w {
-			append(
-				&backing_array,
-				UiRes{fmt.aprintf("%dx%d", mode.w, mode.h), mode.w, mode.h, false},
-			)
+			append(&values, UiRes{fmt.aprintf("%dx%d", mode.w, mode.h), mode.w, mode.h, false})
 			append(&ui_res_prev_checked, false)
 		}
 	}
 	if len(ui_res_prev_checked) > 0 {
 		ui_res_prev_checked[0] = true
 	}
-	return(
-		UiResOptions{
-			display_index,
-			0,
-			backing_array[:len(backing_array)],
-			backing_array,
-			ui_res_prev_checked,
-		} \
-	)
+	return UiResOptions{display_index, 0, values, ui_res_prev_checked}
 }
 
-// change_display_ui_res_options :: proc(opts: ^UiResOptions, new_display_index: i32) {
-// 	opts.display_index = new_display_index
-// 	display_mode_count := get_display_mode_count(new_display_index)
-// 	mode: sdl2.DisplayMode
-// 	for i: i32 = 0; i < display_mode_count; i += 1 {
-// 		last_w: i32 = 0
-// 		last_h: i32 = 0
-// 		if i > 0 {
-// 			res_i := i - 1
-// 			last_w = opts.values[i - 1].w
-// 			last_h = opts.values[i - 1].h
-// 		}
-// 		err := sdl2.GetDisplayMode(new_display_index, i, &mode)
-// 		if err != 0 {
-// 			fmt.printf(
-// 				"GetDisplayMode(%d, %d, &mode) failed %s",
-// 				new_display_index,
-// 				i,
-// 				sdl2.GetErrorString(),
-// 			)
-// 			continue
-// 		}
-// 		if last_h != mode.h && last_w != mode.w {
-// 			fmt.println("i:", i, "len:", len(opts.backing_array), "cap:", cap(opts.backing_array))
-// 			checked := i == 0
-// 			if int(i) >= len(opts.backing_array) {
-// 				append(
-// 					&opts.backing_array,
-// 					UiRes{fmt.aprintf("%dx%d", mode.w, mode.h), mode.w, mode.h, checked},
-// 				)
-// 			} else {
-// 				delete(opts.backing_array[i].label) // is this needed?
-// 				opts.backing_array[i].label = fmt.aprintf("%dx%d", mode.w, mode.h)
-// 				opts.backing_array[i].w = mode.w
-// 				opts.backing_array[i].h = mode.h
-// 				opts.backing_array[i].checked = checked
-// 			}
-// 			if int(i) >= len(opts.prev_checked) {
-// 				append(&opts.prev_checked, checked)
-// 			} else {
-// 				opts.prev_checked[i] = checked
-// 			}
-// 		}
-// 	}
-// }
+change_display_ui_res_options :: proc(opts: ^UiResOptions, new_display_index: i32) {
+	opts.display_index = new_display_index
+	opts.sel = 0
+	for _, i in opts.values {
+		delete(opts.values[i].label)
+	}
+	clear_dynamic_array(&opts.values)
+	clear_dynamic_array(&opts.prev_checked)
+	display_mode_count := get_display_mode_count(new_display_index)
+	mode: sdl2.DisplayMode
+	for i: i32 = 0; i < display_mode_count; i += 1 {
+		last_w: i32 = 0
+		last_h: i32 = 0
+		if i > 0 {
+			res_i := len(opts.values) - 1
+			last_w = opts.values[res_i].w
+			last_h = opts.values[res_i].h
+		}
+		err := sdl2.GetDisplayMode(new_display_index, i, &mode)
+		if err != 0 {
+			fmt.printf(
+				"GetDisplayMode(%d, %d, &mode) failed %s",
+				new_display_index,
+				i,
+				sdl2.GetErrorString(),
+			)
+			continue
+		}
+		if last_h != mode.h && last_w != mode.w {
+			checked := i == 0
+			append(
+				&opts.values,
+				UiRes{fmt.aprintf("%dx%d", mode.w, mode.h), mode.w, mode.h, checked},
+			)
+			append(&opts.prev_checked, checked)
+		}
+	}
+}
 
 update_ui_res_options :: proc(opts: ^UiResOptions) {
 	prev_idx: i32 = opts.sel
@@ -148,10 +129,10 @@ update_ui_res_options :: proc(opts: ^UiResOptions) {
 }
 
 destroy_ui_res_options :: proc(opts: ^UiResOptions) {
-	for _, i in opts.backing_array {
-		delete(opts.backing_array[i].label)
+	for _, i in opts.values {
+		delete(opts.values[i].label)
 	}
-	delete(opts.backing_array)
+	delete(opts.values)
 	delete(opts.prev_checked)
 }
 
@@ -309,7 +290,7 @@ _main :: proc() {
 					fmt.printf("checkbox %d changed from %t to %t\n", i, prev, new)
 					if new {
 						new_sel = i32(i)
-						// change_display_ui_res_options(state.ui_res_options, new_sel)
+						change_display_ui_res_options(state.ui_res_options, new_sel)
 					}
 				}
 			}
