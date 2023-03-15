@@ -1,5 +1,6 @@
 package launcher
 
+import "core:mem"
 import "core:fmt"
 import "core:math"
 import "core:time"
@@ -21,7 +22,7 @@ UiDisplay :: struct {
 }
 
 UiRes :: struct {
-	label:   string,
+	label:   string, // for example 1920x1880
 	w:       i32,
 	h:       i32,
 	checked: bool,
@@ -30,22 +31,23 @@ UiRes :: struct {
 UiResOptions :: struct {
 	display_index: i32,
 	sel:           i32,
-	dyn:           [dynamic]UiRes,
+	values:        []UiRes,
+	backing_array: [dynamic]UiRes,
 	prev_checked:  [dynamic]bool,
 }
 
 create_ui_res_options :: proc(display_index: i32) -> UiResOptions {
 	display_mode_count := get_display_mode_count(display_index)
-	ui_res := make([dynamic]UiRes, 0, 32)
+	backing_array := make([dynamic]UiRes, 0, 32)
 	ui_res_prev_checked := make([dynamic]bool, 0, 32)
 	mode: sdl2.DisplayMode
 	for i: i32 = 0; i < display_mode_count; i += 1 {
 		last_w: i32 = 0
 		last_h: i32 = 0
-		if len(ui_res) > 0 {
-			res_i := len(ui_res) - 1
-			last_w = ui_res[res_i].w
-			last_h = ui_res[res_i].h
+		if len(backing_array) > 0 {
+			res_i := len(backing_array) - 1
+			last_w = backing_array[res_i].w
+			last_h = backing_array[res_i].h
 		}
 		err := sdl2.GetDisplayMode(display_index, i, &mode)
 		if err != 0 {
@@ -58,22 +60,78 @@ create_ui_res_options :: proc(display_index: i32) -> UiResOptions {
 			continue
 		}
 		if last_h != mode.h && last_w != mode.w {
-			append(&ui_res, UiRes{fmt.aprintf("%dx%d", mode.w, mode.h), mode.w, mode.h, false})
+			append(
+				&backing_array,
+				UiRes{fmt.aprintf("%dx%d", mode.w, mode.h), mode.w, mode.h, false},
+			)
 			append(&ui_res_prev_checked, false)
 		}
 	}
 	if len(ui_res_prev_checked) > 0 {
 		ui_res_prev_checked[0] = true
 	}
-	// fmt.println("ui_res:", ui_res)
-	return UiResOptions{display_index, 0, ui_res, ui_res_prev_checked}
+	return(
+		UiResOptions{
+			display_index,
+			0,
+			backing_array[:len(backing_array)],
+			backing_array,
+			ui_res_prev_checked,
+		} \
+	)
 }
+
+// change_display_ui_res_options :: proc(opts: ^UiResOptions, new_display_index: i32) {
+// 	opts.display_index = new_display_index
+// 	display_mode_count := get_display_mode_count(new_display_index)
+// 	mode: sdl2.DisplayMode
+// 	for i: i32 = 0; i < display_mode_count; i += 1 {
+// 		last_w: i32 = 0
+// 		last_h: i32 = 0
+// 		if i > 0 {
+// 			res_i := i - 1
+// 			last_w = opts.values[i - 1].w
+// 			last_h = opts.values[i - 1].h
+// 		}
+// 		err := sdl2.GetDisplayMode(new_display_index, i, &mode)
+// 		if err != 0 {
+// 			fmt.printf(
+// 				"GetDisplayMode(%d, %d, &mode) failed %s",
+// 				new_display_index,
+// 				i,
+// 				sdl2.GetErrorString(),
+// 			)
+// 			continue
+// 		}
+// 		if last_h != mode.h && last_w != mode.w {
+// 			fmt.println("i:", i, "len:", len(opts.backing_array), "cap:", cap(opts.backing_array))
+// 			checked := i == 0
+// 			if int(i) >= len(opts.backing_array) {
+// 				append(
+// 					&opts.backing_array,
+// 					UiRes{fmt.aprintf("%dx%d", mode.w, mode.h), mode.w, mode.h, checked},
+// 				)
+// 			} else {
+// 				delete(opts.backing_array[i].label) // is this needed?
+// 				opts.backing_array[i].label = fmt.aprintf("%dx%d", mode.w, mode.h)
+// 				opts.backing_array[i].w = mode.w
+// 				opts.backing_array[i].h = mode.h
+// 				opts.backing_array[i].checked = checked
+// 			}
+// 			if int(i) >= len(opts.prev_checked) {
+// 				append(&opts.prev_checked, checked)
+// 			} else {
+// 				opts.prev_checked[i] = checked
+// 			}
+// 		}
+// 	}
+// }
 
 update_ui_res_options :: proc(opts: ^UiResOptions) {
 	prev_idx: i32 = opts.sel
 	new_idx: i32 = prev_idx
 	for prev, i in opts.prev_checked {
-		new := opts.dyn[i].checked
+		new := opts.values[i].checked
 		if new != prev {
 			fmt.printf("UiRes checkbox %d edited: %t->%t\n", i, prev, new)
 			if new {
@@ -83,26 +141,29 @@ update_ui_res_options :: proc(opts: ^UiResOptions) {
 	}
 	for _, i in opts.prev_checked {
 		checked := i32(i) == new_idx
-		opts.dyn[i].checked = checked
+		opts.values[i].checked = checked
 		opts.prev_checked[i] = checked
 	}
 	opts.sel = new_idx
 }
 
 destroy_ui_res_options :: proc(opts: ^UiResOptions) {
-
+	for _, i in opts.backing_array {
+		delete(opts.backing_array[i].label)
+	}
+	delete(opts.backing_array)
+	delete(opts.prev_checked)
 }
 
 State :: struct {
 	display_count:          i32,
 	selected_display_index: i32,
-	selected_res_index:     i32,
 	ui_displays:            [dynamic]UiDisplay,
-	ui_res:                 [dynamic]UiRes,
+	ui_res_options:         ^UiResOptions,
 }
 
 
-main :: proc() {
+_main :: proc() {
 	assert(sdl2.Init({.VIDEO}) == 0, sdl2.GetErrorString())
 	defer sdl2.Quit()
 
@@ -110,6 +171,12 @@ main :: proc() {
 
 	display_count := sdl2.GetNumVideoDisplays()
 	ui_displays := make([dynamic]UiDisplay, display_count, display_count)
+	defer {
+		for _, i in ui_displays {
+			delete(ui_displays[i].label)
+		}
+		delete(ui_displays)
+	}
 	prev_checked := make([dynamic]bool, display_count, display_count)
 	defer delete(prev_checked)
 	for i: i32 = 0; i < display_count; i += 1 {
@@ -120,38 +187,10 @@ main :: proc() {
 		prev_checked[i] = checked
 	}
 	display_index: i32 = 0
-	display_mode_count := get_display_mode_count(display_index)
-	ui_res := make([dynamic]UiRes, 0, 32)
-	ui_res_prev_checked := make([dynamic]bool, 0, 32)
-	mode: sdl2.DisplayMode
-	for i: i32 = 0; i < display_mode_count; i += 1 {
-		last_w: i32 = 0
-		last_h: i32 = 0
-		if len(ui_res) > 0 {
-			res_i := len(ui_res) - 1
-			last_w = ui_res[res_i].w
-			last_h = ui_res[res_i].h
-		}
-		err := sdl2.GetDisplayMode(display_index, i, &mode)
-		if err != 0 {
-			fmt.printf(
-				"GetDisplayMode(%d, %d, &mode) failed %s",
-				display_index,
-				i,
-				sdl2.GetErrorString(),
-			)
-			continue
-		}
-		if last_h != mode.h && last_w != mode.w {
-			append(&ui_res, UiRes{fmt.aprintf("%dx%d", mode.w, mode.h), mode.w, mode.h, false})
-			append(&ui_res_prev_checked, false)
-		}
-	}
-	if len(ui_res_prev_checked) > 0 {
-		ui_res_prev_checked[0] = true
-	}
-	fmt.println("ui_res:", ui_res)
-	state := State{display_count, display_index, 0, ui_displays, ui_res}
+	ui_res_options := create_ui_res_options(display_index)
+	defer destroy_ui_res_options(&ui_res_options)
+
+	state := State{display_count, display_index, ui_displays, &ui_res_options}
 	// TODO: properly free state (not really needed since by then the program
 	//       is exiting, but it would be a good learning exercise)
 	// state := create_state(display_count)
@@ -192,6 +231,7 @@ main :: proc() {
 	assert(err == 0, sdl2.GetErrorString())
 	atlas_size := mu.DEFAULT_ATLAS_WIDTH * mu.DEFAULT_ATLAS_HEIGHT
 	pixels := make([][4]u8, atlas_size)
+	defer delete(pixels)
 	for alpha, i in mu.default_atlas_alpha {
 		pixels[i].rgb = 0xff
 		pixels[i].a = alpha
@@ -260,7 +300,6 @@ main :: proc() {
 		}
 
 		// resolve checkbox arrays
-		// TODO: create microui 
 		{
 			prev_sel: i32 = state.selected_display_index
 			new_sel: i32 = prev_sel
@@ -270,6 +309,7 @@ main :: proc() {
 					fmt.printf("checkbox %d changed from %t to %t\n", i, prev, new)
 					if new {
 						new_sel = i32(i)
+						// change_display_ui_res_options(state.ui_res_options, new_sel)
 					}
 				}
 			}
@@ -280,25 +320,7 @@ main :: proc() {
 			}
 			state.selected_display_index = new_sel
 		}
-		{
-			prev_idx: i32 = state.selected_res_index
-			new_idx: i32 = prev_idx
-			for prev, i in ui_res_prev_checked {
-				new := state.ui_res[i].checked
-				if new != prev {
-					fmt.printf("UiRes checkbox %d edited: %t->%t\n", i, prev, new)
-					if new {
-						new_idx = i32(i)
-					}
-				}
-			}
-			for _, i in ui_res_prev_checked {
-				checked := i32(i) == new_idx
-				state.ui_res[i].checked = checked
-				ui_res_prev_checked[i] = checked
-			}
-			state.selected_res_index = new_idx
-		}
+		update_ui_res_options(state.ui_res_options)
 
 		mu.begin(&mu_ctx)
 		mu_update(&mu_ctx, &win, &state)
@@ -310,6 +332,21 @@ main :: proc() {
 		end = get_time()
 		to_sleep := time.Duration((target_dt - (end - start)) * f64(time.Millisecond))
 		time.accurate_sleep(to_sleep)
+	}
+}
+
+main :: proc() {
+	track: mem.Tracking_Allocator
+	mem.tracking_allocator_init(&track, context.allocator)
+	context.allocator = mem.tracking_allocator(&track)
+
+	_main()
+
+	for _, leak in track.allocation_map {
+		fmt.printf("%v leaked %v bytes\n", leak.location, leak.size)
+	}
+	for bad_free in track.bad_free_array {
+		fmt.printf("%v allocation %p was freed badly\n", bad_free.location, bad_free.memory)
 	}
 }
 
@@ -332,12 +369,16 @@ mu_update :: proc(ctx: ^mu.Context, win: ^WindowSettings, state: ^State) {
 		}
 		mu.layout_row(ctx, {75, 85, 85, 85, 85, 85})
 		mu.label(ctx, "Resolution:")
-		for _, i in state.ui_res {
+		for _, i in state.ui_res_options.values {
 			if i % 5 == 0 && i != 0 {
 				mu.layout_row(ctx, {75, 85, 85, 85, 85, 85})
 				mu.label(ctx, "")
 			}
-			mu.checkbox(ctx, state.ui_res[i].label, &state.ui_res[i].checked)
+			mu.checkbox(
+				ctx,
+				state.ui_res_options.values[i].label,
+				&state.ui_res_options.values[i].checked,
+			)
 
 		}
 	}
