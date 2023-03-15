@@ -26,6 +26,53 @@ ui_display_label :: proc(ui_display: ^UiDisplay) -> string {
 	return fmt.bprintf(ui_display.label_buf[:], "%d", ui_display.index)
 }
 
+UiDisplayOptions :: struct {
+	sel:          i32,
+	values:       [dynamic]UiDisplay,
+	prev_checked: [dynamic]bool,
+}
+
+init_ui_display_options :: proc(opts: ^UiDisplayOptions, display_count: i32) {
+	opts.sel = 0
+	reserve_dynamic_array(&opts.values, int(display_count))
+	reserve_dynamic_array(&opts.prev_checked, int(display_count))
+	for i: i32 = 0; i < display_count; i += 1 {
+		checked := i == 0
+		append(&opts.values, UiDisplay{index = i, checked = checked})
+		append(&opts.prev_checked, checked)
+	}
+}
+
+destroy_ui_display_options :: proc(opts: ^UiDisplayOptions) {
+	delete(opts.values)
+	delete(opts.prev_checked)
+}
+
+update_ui_display_options :: proc(opts: ^UiDisplayOptions) -> (i32, bool) {
+	// resolve checkbox arrays
+	updated := false
+	prev_sel: i32 = opts.sel
+	new_sel: i32 = prev_sel
+	for prev, i in opts.prev_checked {
+		new := opts.values[i].checked
+		if new != prev {
+			fmt.printf("checkbox %d changed from %t to %t\n", i, prev, new)
+			if new {
+				new_sel = i32(i)
+				updated = true
+			}
+		}
+	}
+	for _, i in opts.prev_checked {
+		checked := i32(i) == new_sel
+		opts.values[i].checked = checked
+		opts.prev_checked[i] = checked
+	}
+	opts.sel = new_sel
+	return new_sel, updated
+
+}
+
 UiRes :: struct {
 	w:         i32,
 	h:         i32,
@@ -45,18 +92,19 @@ UiResOptions :: struct {
 	prev_checked:  [dynamic]bool,
 }
 
-create_ui_res_options :: proc(display_index: i32) -> UiResOptions {
+init_ui_res_options :: proc(opts: ^UiResOptions, display_index: i32) {
+	opts.sel = 0
 	display_mode_count := get_display_mode_count(display_index)
-	values := make([dynamic]UiRes, 0, 32)
-	ui_res_prev_checked := make([dynamic]bool, 0, 32)
+	reserve_dynamic_array(&opts.values, 32)
+	reserve_dynamic_array(&opts.prev_checked, 32)
 	mode: sdl2.DisplayMode
 	for i: i32 = 0; i < display_mode_count; i += 1 {
 		last_w: i32 = 0
 		last_h: i32 = 0
-		if len(values) > 0 {
-			res_i := len(values) - 1
-			last_w = values[res_i].w
-			last_h = values[res_i].h
+		if len(opts.values) > 0 {
+			res_i := len(opts.values) - 1
+			last_w = opts.values[res_i].w
+			last_h = opts.values[res_i].h
 		}
 		err := sdl2.GetDisplayMode(display_index, i, &mode)
 		if err != 0 {
@@ -69,14 +117,13 @@ create_ui_res_options :: proc(display_index: i32) -> UiResOptions {
 			continue
 		}
 		if last_h != mode.h && last_w != mode.w {
-			append(&values, UiRes{w = mode.w, h = mode.h, checked = false})
-			append(&ui_res_prev_checked, false)
+			append(&opts.values, UiRes{w = mode.w, h = mode.h, checked = false})
+			append(&opts.prev_checked, false)
 		}
 	}
-	if len(ui_res_prev_checked) > 0 {
-		ui_res_prev_checked[0] = true
+	if len(&opts.prev_checked) > 0 {
+		opts.prev_checked[0] = true
 	}
-	return UiResOptions{display_index, 0, values, ui_res_prev_checked}
 }
 
 change_display_ui_res_options :: proc(opts: ^UiResOptions, new_display_index: i32) {
@@ -138,10 +185,27 @@ destroy_ui_res_options :: proc(opts: ^UiResOptions) {
 }
 
 State :: struct {
-	display_count:          i32,
-	selected_display_index: i32,
-	ui_displays:            [dynamic]UiDisplay,
-	ui_res_options:         ^UiResOptions,
+	display_count:      i32,
+	ui_display_options: UiDisplayOptions,
+	ui_res_options:     UiResOptions,
+}
+
+init_state :: proc(state: ^State, display_count: i32) {
+	init_ui_display_options(&state.ui_display_options, display_count)
+	init_ui_res_options(&state.ui_res_options, 0)
+}
+
+destroy_state :: proc(state: ^State) {
+	destroy_ui_display_options(&state.ui_display_options)
+	destroy_ui_res_options(&state.ui_res_options)
+}
+
+update_state :: proc(state: ^State) {
+	new_display_index, changed := update_ui_display_options(&state.ui_display_options)
+	if changed {
+		change_display_ui_res_options(&state.ui_res_options, new_display_index)
+	}
+	update_ui_res_options(&state.ui_res_options)
 }
 
 
@@ -152,25 +216,10 @@ _main :: proc() {
 	// log_display_modes()
 
 	display_count := sdl2.GetNumVideoDisplays()
-	ui_displays := make([dynamic]UiDisplay, display_count, display_count)
-	defer delete(ui_displays)
-	prev_checked := make([dynamic]bool, display_count, display_count)
-	defer delete(prev_checked)
-	for i: i32 = 0; i < display_count; i += 1 {
-		ui_displays[i].index = i
-		checked := i == 0
-		ui_displays[i].checked = checked
-		prev_checked[i] = checked
-	}
-	display_index: i32 = 0
-	ui_res_options := create_ui_res_options(display_index)
-	defer destroy_ui_res_options(&ui_res_options)
 
-	state := State{display_count, display_index, ui_displays, &ui_res_options}
-	// TODO: properly free state (not really needed since by then the program
-	//       is exiting, but it would be a good learning exercise)
-	// state := create_state(display_count)
-	// defer free_state(state)
+	state := State{}
+	init_state(&state, display_count)
+	defer destroy_state(&state)
 
 	win := WindowSettings {
 		w            = 640,
@@ -275,28 +324,7 @@ _main :: proc() {
 			}
 		}
 
-		// resolve checkbox arrays
-		{
-			prev_sel: i32 = state.selected_display_index
-			new_sel: i32 = prev_sel
-			for prev, i in prev_checked {
-				new := state.ui_displays[i].checked
-				if new != prev {
-					fmt.printf("checkbox %d changed from %t to %t\n", i, prev, new)
-					if new {
-						new_sel = i32(i)
-						change_display_ui_res_options(state.ui_res_options, new_sel)
-					}
-				}
-			}
-			for _, i in prev_checked {
-				checked := i32(i) == new_sel
-				state.ui_displays[i].checked = checked
-				prev_checked[i] = checked
-			}
-			state.selected_display_index = new_sel
-		}
-		update_ui_res_options(state.ui_res_options)
+		update_state(&state)
 
 		mu.begin(&mu_ctx)
 		mu_update(&mu_ctx, &win, &state)
@@ -340,11 +368,11 @@ mu_update :: proc(ctx: ^mu.Context, win: ^WindowSettings, state: ^State) {
 		}
 		mu.layout_row(ctx, {75, 40, 40, 40, 40})
 		mu.label(ctx, "Displays:")
-		for _, i in state.ui_displays {
+		for _, i in state.ui_display_options.values {
 			mu.checkbox(
 				ctx,
-				ui_display_label(&state.ui_displays[i]),
-				&state.ui_displays[i].checked,
+				ui_display_label(&state.ui_display_options.values[i]),
+				&state.ui_display_options.values[i].checked,
 			)
 		}
 		mu.layout_row(ctx, {75, 85, 85, 85, 85, 85})
