@@ -16,16 +16,26 @@ WindowSettings :: struct {
 }
 
 UiDisplay :: struct {
-	label:   string,
-	index:   i32,
-	checked: bool,
+	index:     i32,
+	checked:   bool,
+	label_buf: [1]u8, // for example '0'
+}
+
+// Get label as string without allocating
+ui_display_label :: proc(ui_display: ^UiDisplay) -> string {
+	return fmt.bprintf(ui_display.label_buf[:], "%d", ui_display.index)
 }
 
 UiRes :: struct {
-	label:   string, // for example 1920x1880
-	w:       i32,
-	h:       i32,
-	checked: bool,
+	w:         i32,
+	h:         i32,
+	checked:   bool,
+	label_buf: [9]u8, // for example 1920x1880
+}
+
+// Get label as string without allocating
+ui_res_label :: proc(ui_res: ^UiRes) -> string {
+	return fmt.bprintf(ui_res.label_buf[:], "%dx%d", ui_res.w, ui_res.h)
 }
 
 UiResOptions :: struct {
@@ -59,7 +69,7 @@ create_ui_res_options :: proc(display_index: i32) -> UiResOptions {
 			continue
 		}
 		if last_h != mode.h && last_w != mode.w {
-			append(&values, UiRes{fmt.aprintf("%dx%d", mode.w, mode.h), mode.w, mode.h, false})
+			append(&values, UiRes{w = mode.w, h = mode.h, checked = false})
 			append(&ui_res_prev_checked, false)
 		}
 	}
@@ -72,9 +82,6 @@ create_ui_res_options :: proc(display_index: i32) -> UiResOptions {
 change_display_ui_res_options :: proc(opts: ^UiResOptions, new_display_index: i32) {
 	opts.display_index = new_display_index
 	opts.sel = 0
-	for _, i in opts.values {
-		delete(opts.values[i].label)
-	}
 	clear_dynamic_array(&opts.values)
 	clear_dynamic_array(&opts.prev_checked)
 	display_mode_count := get_display_mode_count(new_display_index)
@@ -99,10 +106,7 @@ change_display_ui_res_options :: proc(opts: ^UiResOptions, new_display_index: i3
 		}
 		if last_h != mode.h && last_w != mode.w {
 			checked := i == 0
-			append(
-				&opts.values,
-				UiRes{fmt.aprintf("%dx%d", mode.w, mode.h), mode.w, mode.h, checked},
-			)
+			append(&opts.values, UiRes{w = mode.w, h = mode.h, checked = checked})
 			append(&opts.prev_checked, checked)
 		}
 	}
@@ -129,9 +133,6 @@ update_ui_res_options :: proc(opts: ^UiResOptions) {
 }
 
 destroy_ui_res_options :: proc(opts: ^UiResOptions) {
-	for _, i in opts.values {
-		delete(opts.values[i].label)
-	}
 	delete(opts.values)
 	delete(opts.prev_checked)
 }
@@ -152,16 +153,10 @@ _main :: proc() {
 
 	display_count := sdl2.GetNumVideoDisplays()
 	ui_displays := make([dynamic]UiDisplay, display_count, display_count)
-	defer {
-		for _, i in ui_displays {
-			delete(ui_displays[i].label)
-		}
-		delete(ui_displays)
-	}
+	defer delete(ui_displays)
 	prev_checked := make([dynamic]bool, display_count, display_count)
 	defer delete(prev_checked)
 	for i: i32 = 0; i < display_count; i += 1 {
-		ui_displays[i].label = fmt.aprintf("%d", i)
 		ui_displays[i].index = i
 		checked := i == 0
 		ui_displays[i].checked = checked
@@ -346,7 +341,11 @@ mu_update :: proc(ctx: ^mu.Context, win: ^WindowSettings, state: ^State) {
 		mu.layout_row(ctx, {75, 40, 40, 40, 40})
 		mu.label(ctx, "Displays:")
 		for _, i in state.ui_displays {
-			mu.checkbox(ctx, state.ui_displays[i].label, &state.ui_displays[i].checked)
+			mu.checkbox(
+				ctx,
+				ui_display_label(&state.ui_displays[i]),
+				&state.ui_displays[i].checked,
+			)
 		}
 		mu.layout_row(ctx, {75, 85, 85, 85, 85, 85})
 		mu.label(ctx, "Resolution:")
@@ -357,10 +356,9 @@ mu_update :: proc(ctx: ^mu.Context, win: ^WindowSettings, state: ^State) {
 			}
 			mu.checkbox(
 				ctx,
-				state.ui_res_options.values[i].label,
+				ui_res_label(&state.ui_res_options.values[i]),
 				&state.ui_res_options.values[i].checked,
 			)
-
 		}
 	}
 }
