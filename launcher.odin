@@ -70,7 +70,6 @@ update_ui_display_options :: proc(opts: ^UiDisplayOptions) -> (i32, bool) {
 	}
 	opts.sel = new_sel
 	return new_sel, updated
-
 }
 
 UiRes :: struct {
@@ -159,7 +158,8 @@ change_display_ui_res_options :: proc(opts: ^UiResOptions, new_display_index: i3
 	}
 }
 
-update_ui_res_options :: proc(opts: ^UiResOptions) {
+update_ui_res_options :: proc(opts: ^UiResOptions) -> (UiRes, bool) {
+	changed := false
 	prev_idx: i32 = opts.sel
 	new_idx: i32 = prev_idx
 	for prev, i in opts.prev_checked {
@@ -168,6 +168,7 @@ update_ui_res_options :: proc(opts: ^UiResOptions) {
 			fmt.printf("UiRes checkbox %d edited: %t->%t\n", i, prev, new)
 			if new {
 				new_idx = i32(i)
+				changed = true
 			}
 		}
 	}
@@ -177,9 +178,109 @@ update_ui_res_options :: proc(opts: ^UiResOptions) {
 		opts.prev_checked[i] = checked
 	}
 	opts.sel = new_idx
+	return opts.values[opts.sel], changed
 }
 
 destroy_ui_res_options :: proc(opts: ^UiResOptions) {
+	delete(opts.values)
+	delete(opts.prev_checked)
+}
+
+UiRefresh :: struct {
+	v:         i32,
+	checked:   bool,
+	label_buf: [3]u8, // for example '60'
+}
+
+// Get label as string without allocating
+ui_refresh_label :: proc(ui_refresh: ^UiRefresh) -> string {
+	return fmt.bprintf(ui_refresh.label_buf[:], "%d", ui_refresh.v)
+}
+
+UiRefreshOptions :: struct {
+	sel:          int,
+	values:       [dynamic]UiRefresh,
+	prev_checked: [dynamic]bool,
+}
+
+init_ui_refresh_options :: proc(opts: ^UiRefreshOptions, display_index: i32, res: UiRes) {
+	opts.sel = 0
+	display_mode_count := get_display_mode_count(display_index)
+	reserve_dynamic_array(&opts.values, 16)
+	reserve_dynamic_array(&opts.prev_checked, 16)
+	mode: sdl2.DisplayMode
+	for i: i32 = 0; i < display_mode_count; i += 1 {
+		err := sdl2.GetDisplayMode(display_index, i, &mode)
+		if err != 0 {
+			fmt.println("sdl2.GetDisplayMode error:", err)
+			continue
+		}
+		if mode.w != res.w || mode.h != res.h {
+			continue
+		}
+
+		first := len(opts.values) == 0
+		last_refresh: i32 = -1
+		if len(opts.values) > 0 {
+			last_refresh = opts.values[len(opts.values) - 1].v
+		}
+		checked := first
+		if last_refresh != mode.refresh_rate {
+			append(&opts.values, UiRefresh{v = mode.refresh_rate, checked = checked})
+			append(&opts.prev_checked, checked)
+		}
+	}
+}
+
+change_ui_refresh_options :: proc(opts: ^UiRefreshOptions, display_index: i32, res: UiRes) {
+	opts.sel = 0
+	clear_dynamic_array(&opts.values)
+	clear_dynamic_array(&opts.prev_checked)
+	display_mode_count := get_display_mode_count(display_index)
+	mode: sdl2.DisplayMode
+	for i: i32 = 0; i < display_mode_count; i += 1 {
+		err := sdl2.GetDisplayMode(display_index, i, &mode)
+		if err != 0 {
+			continue
+		}
+		if mode.w != res.w || mode.h != res.h {
+			continue
+		}
+
+		first := len(opts.values) == 0
+		last_refresh: i32 = -1
+		if len(opts.values) > 0 {
+			last_refresh = opts.values[len(opts.values) - 1].v
+		}
+		checked := first
+		if last_refresh != mode.refresh_rate {
+			append(&opts.values, UiRefresh{v = mode.refresh_rate, checked = checked})
+			append(&opts.prev_checked, checked)
+		}
+	}
+}
+
+update_ui_refresh_options :: proc(opts: ^UiRefreshOptions) {
+	prev_idx: int = opts.sel
+	new_idx: int = prev_idx
+	for prev, i in opts.prev_checked {
+		new := opts.values[i].checked
+		if new != prev {
+			fmt.printf("UiRefresh checkbox %d edited %t-> %t\n", i, prev, new)
+			if new {
+				new_idx = i
+			}
+		}
+	}
+	for _, i in opts.prev_checked {
+		checked := i == new_idx
+		opts.values[i].checked = checked
+		opts.prev_checked[i] = checked
+	}
+	opts.sel = new_idx
+}
+
+destroy_ui_refresh_options :: proc(opts: ^UiRefreshOptions) {
 	delete(opts.values)
 	delete(opts.prev_checked)
 }
@@ -188,24 +289,32 @@ State :: struct {
 	display_count:      i32,
 	ui_display_options: UiDisplayOptions,
 	ui_res_options:     UiResOptions,
+	ui_refresh_options: UiRefreshOptions,
 }
 
 init_state :: proc(state: ^State, display_count: i32) {
 	init_ui_display_options(&state.ui_display_options, display_count)
 	init_ui_res_options(&state.ui_res_options, 0)
+	ui_res := state.ui_res_options.values[state.ui_res_options.sel]
+	init_ui_refresh_options(&state.ui_refresh_options, 0, ui_res)
 }
 
 destroy_state :: proc(state: ^State) {
 	destroy_ui_display_options(&state.ui_display_options)
 	destroy_ui_res_options(&state.ui_res_options)
+	destroy_ui_refresh_options(&state.ui_refresh_options)
 }
 
 update_state :: proc(state: ^State) {
-	new_display_index, changed := update_ui_display_options(&state.ui_display_options)
-	if changed {
+	new_display_index, changed1 := update_ui_display_options(&state.ui_display_options)
+	if changed1 {
 		change_display_ui_res_options(&state.ui_res_options, new_display_index)
 	}
-	update_ui_res_options(&state.ui_res_options)
+	new_ui_res, changed2 := update_ui_res_options(&state.ui_res_options)
+	if changed1 || changed2 {
+		change_ui_refresh_options(&state.ui_refresh_options, 0, new_ui_res)
+	}
+	update_ui_refresh_options(&state.ui_refresh_options)
 }
 
 
@@ -386,6 +495,19 @@ mu_update :: proc(ctx: ^mu.Context, win: ^WindowSettings, state: ^State) {
 				ctx,
 				ui_res_label(&state.ui_res_options.values[i]),
 				&state.ui_res_options.values[i].checked,
+			)
+		}
+		mu.layout_row(ctx, {75, 85, 85, 85, 85, 85})
+		mu.label(ctx, "Refresh Rate:")
+		for _, i in state.ui_refresh_options.values {
+			if i % 5 == 0 && i != 0 {
+				mu.layout_row(ctx, {75, 85, 85, 85, 85, 85})
+				mu.label(ctx, "")
+			}
+			mu.checkbox(
+				ctx,
+				ui_refresh_label(&state.ui_refresh_options.values[i]),
+				&state.ui_refresh_options.values[i].checked,
 			)
 		}
 	}
