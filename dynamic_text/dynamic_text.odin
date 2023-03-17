@@ -1,5 +1,6 @@
 package dynamic_text
 
+import "core:mem"
 import "core:fmt"
 import "core:time"
 import "core:strings"
@@ -16,7 +17,22 @@ Game :: struct {
 }
 
 main :: proc() {
-	window_width : i32 = 1200
+	track: mem.Tracking_Allocator
+	mem.tracking_allocator_init(&track, context.allocator)
+	context.allocator = mem.tracking_allocator(&track)
+
+	_main()
+
+	for _, leak in track.allocation_map {
+		fmt.printf("%v leaked %v bytes\n", leak.location, leak.size)
+	}
+	for bad_free in track.bad_free_array {
+		fmt.printf("%v allocation %p was freed badly\n", bad_free.location, bad_free.memory)
+	}
+}
+
+_main :: proc() {
+	window_width: i32 = 1200
 	window_height: i32 = 800
 
 	window := sdl2.CreateWindow(
