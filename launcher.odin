@@ -1,5 +1,6 @@
 package launcher
 
+import "core:c"
 import "core:mem"
 import "core:fmt"
 import "core:math"
@@ -9,10 +10,52 @@ import mu "vendor:microui"
 
 import "dynamic_text"
 
+get_active_display_index :: proc() -> c.int {
+	mf_win := sdl2.GetMouseFocus()
+	fmt.println("mouse focus:", mf_win)
+	kf_win := sdl2.GetKeyboardFocus()
+	fmt.println("keyboard focus:", kf_win)
+
+	// These are both <nil> :(
+
+	// get bounds
+	// This works, but currently no way to see which monitor has keyboard/mouse
+	// focus
+	display_count := sdl2.GetNumVideoDisplays()
+	active: c.int = 0
+	for i: c.int = 0; i < display_count; i += 1 {
+		rect: sdl2.Rect
+		bounds := sdl2.GetDisplayBounds(i, &rect)
+		fmt.println(i, rect)
+		active = i
+	}
+	return active
+}
+
+
 WindowSettings :: struct {
-	w:            i32,
-	h:            i32,
-	refresh_rate: i32,
+	w:             i32,
+	h:             i32,
+	refresh_rate:  i32,
+	display_index: i32,
+}
+
+window_settings_get_matching_display_mode :: proc(
+	win: WindowSettings,
+	mode: ^sdl2.DisplayMode,
+) -> bool {
+	display_mode_count := get_display_mode_count(win.display_index)
+	for i: i32 = 0; i < display_mode_count; i += 1 {
+		err := sdl2.GetDisplayMode(win.display_index, i, mode)
+		if err != 0 {
+			fmt.println("sdl2.GetDisplayMode error:", err)
+			continue
+		}
+		if mode.w == win.w && mode.h == win.h && mode.refresh_rate == win.refresh_rate {
+			return true
+		}
+	}
+	return false
 }
 
 UiDisplay :: struct {
@@ -317,6 +360,20 @@ update_state :: proc(state: ^State) {
 	update_ui_refresh_options(&state.ui_refresh_options)
 }
 
+state_get_launch_settings :: proc(state: ^State) -> WindowSettings {
+	res := state.ui_res_options.values[state.ui_res_options.sel]
+	refresh := state.ui_refresh_options.values[state.ui_refresh_options.sel]
+	display_index := state.ui_display_options.sel
+	return(
+		WindowSettings{
+			w = res.w,
+			h = res.h,
+			refresh_rate = refresh.v,
+			display_index = display_index,
+		} \
+	)
+}
+
 
 _main :: proc() {
 	assert(sdl2.Init({.VIDEO}) == 0, sdl2.GetErrorString())
@@ -337,10 +394,12 @@ _main :: proc() {
 	}
 	target_dt: f64 = 1000 / f64(win.refresh_rate)
 
+	active_display := get_active_display_index()
+
 	window := sdl2.CreateWindow(
 		"Laucher",
-		sdl2.WINDOWPOS_UNDEFINED,
-		sdl2.WINDOWPOS_UNDEFINED,
+		sdl2.WINDOWPOS_UNDEFINED_DISPLAY(active_display),
+		sdl2.WINDOWPOS_UNDEFINED_DISPLAY(active_display),
 		win.w,
 		win.h,
 		{.SHOWN},
@@ -473,7 +532,7 @@ mu_update :: proc(ctx: ^mu.Context, win: ^WindowSettings, state: ^State) {
 	if mu.window(ctx, "Launcher", {0, 0, win.w, win.h}, opts) {
 		mu.layout_row(ctx, {-1})
 		if .SUBMIT in mu.button(ctx, "Dynamic Text") {
-			launch()
+			launch(state_get_launch_settings(state))
 		}
 		mu.layout_row(ctx, {75, 40, 40, 40, 40})
 		mu.label(ctx, "Displays:")
@@ -570,27 +629,30 @@ render :: proc(ctx: ^mu.Context, renderer: ^sdl2.Renderer, atlas_texture: ^sdl2.
 	sdl2.RenderPresent(renderer)
 }
 
-launch :: proc() {
-	win := WindowSettings {
-		w = 1200,
-		h = 800,
-	}
+launch :: proc(win: WindowSettings) {
 	window := sdl2.CreateWindow(
 		"Dynamic Text",
-		sdl2.WINDOWPOS_UNDEFINED,
-		sdl2.WINDOWPOS_UNDEFINED,
+		sdl2.WINDOWPOS_UNDEFINED_DISPLAY(win.display_index),
+		sdl2.WINDOWPOS_UNDEFINED_DISPLAY(win.display_index),
 		win.w,
 		win.h,
-		{.SHOWN},
+		{.SHOWN, .FULLSCREEN, .ALLOW_HIGHDPI},
 	)
 	assert(window != nil, sdl2.GetErrorString())
 	defer sdl2.DestroyWindow(window)
+
+	mode: sdl2.DisplayMode
+	found := window_settings_get_matching_display_mode(win, &mode)
+	err := sdl2.SetWindowDisplayMode(window, &mode)
+	if err != 0 {
+		fmt.println("Failed to set window display mode with err:", err)
+	}
 
 	renderer := sdl2.CreateRenderer(window, -1, sdl2.RENDERER_ACCELERATED)
 	assert(renderer != nil, sdl2.GetErrorString())
 	defer sdl2.DestroyRenderer(renderer)
 
-	dynamic_text.run(win.w, win.h, renderer, 60)
+	dynamic_text.run(win.w, win.h, renderer, win.refresh_rate)
 
 	// discard any events from the launched window
 	event: sdl2.Event
