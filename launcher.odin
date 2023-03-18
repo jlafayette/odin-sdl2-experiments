@@ -10,24 +10,52 @@ import mu "vendor:microui"
 
 import "dynamic_text"
 
+when ODIN_OS == .Windows {
+	import win32 "core:sys/windows"
+}
+
 get_active_display_index :: proc() -> c.int {
 	mf_win := sdl2.GetMouseFocus()
 	fmt.println("mouse focus:", mf_win)
 	kf_win := sdl2.GetKeyboardFocus()
 	fmt.println("keyboard focus:", kf_win)
-
 	// These are both <nil> :(
 
-	// get bounds
-	// This works, but currently no way to see which monitor has keyboard/mouse
-	// focus
+	foreground_rect_found := false
+	foreground_rect: sdl2.Rect
+	when ODIN_OS == .Windows {
+		fmt.println("running on windows")
+		rect: win32.RECT
+		handle := win32.GetForegroundWindow()
+		err := win32.GetWindowRect(handle, &rect)
+		fmt.println("handle:", handle, "rect:", rect, "error:", err)
+		if err {
+			// It errors with 6 (The handle is invalid), but the rect gets the
+			// right values, so it seems to have worked?
+			fmt.println("Error getting window rect", win32.GetLastError())
+		}
+		foreground_rect_found = true
+		foreground_rect.x = rect.left
+		foreground_rect.y = rect.top
+		foreground_rect.w = rect.right - rect.left
+		foreground_rect.h = rect.bottom - rect.top
+	}
+	if !foreground_rect_found {
+		return 0
+	}
+	fmt.println("foreground rect:", foreground_rect)
+
+	// Check which display contains the window with focus
 	display_count := sdl2.GetNumVideoDisplays()
 	active: c.int = 0
 	for i: c.int = 0; i < display_count; i += 1 {
 		rect: sdl2.Rect
-		bounds := sdl2.GetDisplayBounds(i, &rect)
+		err := sdl2.GetDisplayBounds(i, &rect)
+		if err != 0 do continue
 		fmt.println(i, rect)
-		active = i
+		if sdl2.HasIntersection(&rect, &foreground_rect) {
+			active = i
+		}
 	}
 	return active
 }
