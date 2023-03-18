@@ -14,6 +14,15 @@ when ODIN_OS == .Windows {
 	import win32 "core:sys/windows"
 }
 
+rect_overlap_area :: proc(a, b: ^sdl2.Rect) -> int {
+	if sdl2.HasIntersection(a, b) {
+		result: sdl2.Rect
+		sdl2.IntersectRect(a, b, &result)
+		return int(result.w * result.h)
+	}
+	return 0
+}
+
 get_active_display_index :: proc() -> c.int {
 	mf_win := sdl2.GetMouseFocus()
 	fmt.println("mouse focus:", mf_win)
@@ -48,13 +57,17 @@ get_active_display_index :: proc() -> c.int {
 	// Check which display contains the window with focus
 	display_count := sdl2.GetNumVideoDisplays()
 	active: c.int = 0
+	max_overlap := 0
 	for i: c.int = 0; i < display_count; i += 1 {
 		rect: sdl2.Rect
 		err := sdl2.GetDisplayBounds(i, &rect)
 		if err != 0 do continue
 		fmt.println(i, rect)
-		if sdl2.HasIntersection(&rect, &foreground_rect) {
+		overlap_area := rect_overlap_area(&rect, &foreground_rect)
+		fmt.printf("monitor %d has overlap of %d\n", i, overlap_area)
+		if overlap_area > max_overlap {
 			active = i
+			max_overlap = overlap_area
 		}
 	}
 	return active
