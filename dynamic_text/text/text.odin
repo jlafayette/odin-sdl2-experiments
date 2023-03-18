@@ -67,7 +67,16 @@ destroy_drawer :: proc(drawer: ^Drawer) {
 	free(drawer)
 }
 
-draw :: proc(drawer: ^Drawer, str: ^string, pos: Pos, wrap_width: i32 = -1, scale: f64 = 1.0) {
+draw :: proc(
+	drawer: ^Drawer,
+	builder: ^strings.Builder,
+	pos: Pos,
+	wrap_width: i32 = -1,
+	scale: f64 = 1.0,
+) {
+	str := strings.to_string(builder^)
+	// do we need to free this str?
+
 	char_map := drawer.char_map
 	renderer := drawer.renderer
 

@@ -12,7 +12,8 @@ import "text"
 
 Game :: struct {
 	fps:             f64,
-	text_input:      string,
+	text_builder:    strings.Builder,
+	fps_builder:     strings.Builder,
 	text_size_index: int,
 }
 
@@ -59,9 +60,13 @@ run :: proc(window_width: i32, window_height: i32, renderer: ^sdl2.Renderer, ref
 	target_dt: f64 = 1000 / f64(refresh_rate)
 
 	game := Game {
-		text_input      = "Try typing something... ",
+		text_builder    = strings.builder_make(0, 1024),
+		fps_builder     = strings.builder_make(0, 32),
 		text_size_index = 3,
 	}
+	defer strings.builder_destroy(&game.text_builder)
+	defer strings.builder_destroy(&game.fps_builder)
+	fmt.sbprint(&game.text_builder, "Try typing something...")
 
 	ttf_init_result := ttf.Init()
 	assert(ttf_init_result == 0, sdl2.GetErrorString())
@@ -106,7 +111,7 @@ run :: proc(window_width: i32, window_height: i32, renderer: ^sdl2.Renderer, ref
 					sdl2.PushEvent(&sdl2.Event{type = .QUIT})
 				}
 			}
-			game.text_input = handle_key_press(&event, game.text_input)
+			handle_key_press(&event, &game.text_builder)
 			{
 				new_index := handle_change_text_size(&event, game.text_size_index)
 				index := clamp(new_index, 0, len(text_sizes) - 1)
@@ -116,13 +121,14 @@ run :: proc(window_width: i32, window_height: i32, renderer: ^sdl2.Renderer, ref
 
 		// Render
 		// draw fps
-		fps_str := fmt.tprintf("FPS: %f", game.fps)
-		text.draw(debug_text_drawer, &fps_str, text.Pos{10, 10})
+		strings.builder_reset(&game.fps_builder)
+		fmt.sbprintf(&game.fps_builder, "FPS: %f", game.fps)
+		text.draw(debug_text_drawer, &game.fps_builder, text.Pos{10, 10})
 		// draw text input
 		// scale: f64 = f64(text_sizes[game.text_size_index]) / 100
 		text.draw(
 			text_drawers[game.text_size_index],
-			&game.text_input,
+			&game.text_builder,
 			text.Pos{100, 100},
 			window_width - 200,
 		)
@@ -152,22 +158,19 @@ handle_exit :: proc(event: ^sdl2.Event) -> bool {
 	return false
 }
 
-handle_key_press :: proc(event: ^sdl2.Event, prev_input: string) -> string {
-	new_input := prev_input
+handle_key_press :: proc(event: ^sdl2.Event, builder: ^strings.Builder) {
 	#partial switch event.type {
 	case .TEXTINPUT:
-		input := cstring(raw_data(event.text.text[:])) // event.text.text [32]u8 (utf-8 encoding)
-		new_input = strings.concatenate({prev_input, string(input)})
-		fmt.println("TEXTINPUT event:", new_input)
+		// event.text.text [32]u8 (utf-8 encoding)
+		input := string(cstring(raw_data(event.text.text[:])))
+		strings.write_string(builder, input)
+		fmt.println("TEXTINPUT event:", strings.to_string(builder^))
 	case .KEYDOWN:
 		if event.key.keysym.scancode == .BACKSPACE {
-			if len(prev_input) > 0 {
-				new_input = prev_input[:len(prev_input) - 1]
-				fmt.println("BACKSPACE event:", new_input)
-			}
+			strings.pop_rune(builder)
+			fmt.println("BACKSPACE event:", strings.to_string(builder^))
 		}
 	}
-	return new_input
 }
 
 handle_change_text_size :: proc(event: ^sdl2.Event, current_size: int) -> int {
