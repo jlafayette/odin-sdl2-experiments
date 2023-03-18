@@ -1,9 +1,59 @@
 package setup
 
-import "core:mem"
 import "core:os"
 import "core:fmt"
 import "core:path/filepath"
+
+
+// Copy dll files from odin install to the project folder
+// This avoids having to commit all of these to git for the project to work
+// (.dll only tested on Windows, maybe .lib are needed on other platforms)
+main :: proc() {
+	exe_path := os.args[0]
+
+	project_root := filepath.dir(exe_path)
+	defer delete(project_root)
+	fmt.println("project root:", project_root)
+
+	sdl2_dir := filepath.join({ODIN_ROOT, "vendor", "sdl2"})
+	defer delete(sdl2_dir)
+	fmt.println("sdl2 dir:", sdl2_dir)
+
+	{
+		files := [?]string{"SDL2.dll"}
+		for file in files {
+			src := filepath.join({sdl2_dir, file})
+			defer delete(src)
+			dst := filepath.join({project_root, file})
+			defer delete(dst)
+			err := copy_file(src, dst)
+			fmt.printf("copy %s ok: %t\n", file, err)
+		}
+	}
+
+	{
+		ttf_path := filepath.join({sdl2_dir, "ttf"})
+		defer delete(ttf_path)
+		files := [?]string{"libfreetype-6.dll", "SDL2_ttf.dll", "zlib1.dll"}
+		for file in files {
+			src := filepath.join({ttf_path, file})
+			defer delete(src)
+			dst := filepath.join({project_root, file})
+			defer delete(dst)
+			err := copy_file(src, dst)
+			fmt.printf("copy %s ok: %t\n", file, err)
+		}
+	}
+}
+
+
+copy_file :: proc(src, dst: string) -> (success: bool) {
+	data, read_ok := os.read_entire_file(src)
+	defer delete(data)
+	if !read_ok do return false
+	write_ok := os.write_entire_file(dst, data)
+	return write_ok
+}
 
 
 // could use os.read_entire_file, os.write_entire_file, but going more into
@@ -54,53 +104,4 @@ copy_file_for_learning :: proc(src, dst: string) -> (success: bool) {
 	}
 
 	return true
-}
-
-copy_file :: proc(src, dst: string) -> (success: bool) {
-	data, read_ok := os.read_entire_file(src)
-	defer delete(data)
-	if !read_ok do return false
-	write_ok := os.write_entire_file(dst, data)
-	return write_ok
-}
-
-// Copy dll files from odin install to the project folder
-// This avoids having to commit all of these to git for the project to work
-// (.dll only tested on Windows, maybe .lib are needed on other platforms)
-main :: proc() {
-	exe_path := os.args[0]
-
-	project_root := filepath.dir(exe_path)
-	defer delete(project_root)
-	fmt.println("project root:", project_root)
-
-	sdl2_dir := filepath.join({ODIN_ROOT, "vendor", "sdl2"})
-	defer delete(sdl2_dir)
-	fmt.println("sdl2 dir:", sdl2_dir)
-
-	{
-		files := [?]string{"SDL2.dll"}
-		for file in files {
-			src := filepath.join({sdl2_dir, file})
-			defer delete(src)
-			dst := filepath.join({project_root, file})
-			defer delete(dst)
-			err := copy_file(src, dst)
-			fmt.printf("copy %s ok: %t\n", file, err)
-		}
-	}
-
-	{
-		ttf_path := filepath.join({sdl2_dir, "ttf"})
-		defer delete(ttf_path)
-		files := [?]string{"libfreetype-6.dll", "SDL2_ttf.dll", "zlib1.dll"}
-		for file in files {
-			src := filepath.join({ttf_path, file})
-			defer delete(src)
-			dst := filepath.join({project_root, file})
-			defer delete(dst)
-			err := copy_file(src, dst)
-			fmt.printf("copy %s ok: %t\n", file, err)
-		}
-	}
 }
