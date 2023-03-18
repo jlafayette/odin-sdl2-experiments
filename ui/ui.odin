@@ -1,6 +1,9 @@
 package main
 
 import "core:fmt"
+import "core:mem"
+import "core:os"
+import "core:slice"
 import "core:time"
 import "core:strings"
 
@@ -20,7 +23,31 @@ Game :: struct {
 }
 game := Game{}
 
+
 main :: proc() {
+	debug := slice.contains(os.args[1:], "--debug")
+
+	if debug {
+		fmt.println("debug mode on, tracking memory allocations")
+		track: mem.Tracking_Allocator
+		mem.tracking_allocator_init(&track, context.allocator)
+		context.allocator = mem.tracking_allocator(&track)
+
+		_main()
+
+		for _, leak in track.allocation_map {
+			fmt.printf("%v leaked %v bytes\n", leak.location, leak.size)
+		}
+		for bad_free in track.bad_free_array {
+			fmt.printf("%v allocation %p was freed badly\n", bad_free.location, bad_free.memory)
+		}
+	} else {
+		_main()
+	}
+}
+
+
+_main :: proc() {
 
 	assert(sdl2.Init({.VIDEO}) == 0, sdl2.GetErrorString())
 	defer sdl2.Quit()
@@ -71,6 +98,7 @@ main :: proc() {
 		return
 	}
 	pixels := make([][4]u8, mu.DEFAULT_ATLAS_WIDTH * mu.DEFAULT_ATLAS_HEIGHT)
+	defer delete(pixels)
 	for alpha, i in mu.default_atlas_alpha {
 		pixels[i].rgb = 0xff
 		pixels[i].a = alpha
