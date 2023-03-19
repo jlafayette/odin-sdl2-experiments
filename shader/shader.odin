@@ -11,74 +11,43 @@ import gl "vendor:OpenGL"
 GL_VERSION_MAJOR :: 3
 GL_VERSION_MINOR :: 3
 
-SCREEN_WIDTH: i32 = 1280
-SCREEN_HEIGHT: i32 = 960
-TARGET_DT: f64 = 1000 / 59
-perf_frequency: f64
-
 Game :: struct {
 	fps: f64,
 }
-game := Game{}
+
 
 main :: proc() {
-
 	assert(sdl2.Init({.VIDEO}) == 0, sdl2.GetErrorString())
 	defer sdl2.Quit()
-
-	display_count := sdl2.GetNumVideoDisplays()
-	fmt.println("Display count:", display_count)
-	for display_index: i32 = 0; display_index < display_count; display_index += 1 {
-		display_mode_count := sdl2.GetNumDisplayModes(display_index)
-		fmt.printf("%d: %d\n", display_index, display_mode_count)
-
-		if display_mode_count < 1 {
-			fmt.eprintln("Display mode count:", display_mode_count)
-			continue
-		}
-		for i: i32 = 0; i < display_mode_count; i += 1 {
-			mode: sdl2.DisplayMode
-			err := sdl2.GetDisplayMode(display_index, i, &mode)
-			if err != 0 {
-				fmt.printf(
-					"GetDisplayMode(%d, %d, &mode) failed %s",
-					display_index,
-					i,
-					sdl2.GetErrorString(),
-				)
-				continue
-			}
-			f := mode.format
-			fmt.printf(
-				"Mode: %2d %d format: %s %4dx%4d refresh: %d\n",
-				i,
-				f,
-				sdl2.GetPixelFormatName(f),
-				mode.w,
-				mode.h,
-				mode.refresh_rate,
-			)
-		}
-	}
-
 
 	displayMode: sdl2.DisplayMode
 	sdl2.GetCurrentDisplayMode(1, &displayMode)
 	screen_width := displayMode.w
 	screen_height := displayMode.h
-	// fmt.println(displayMode, displayMode.w, displayMode.h)
+
+	window_width: i32 = 1280
+	window_height: i32 = 960
 
 	window := sdl2.CreateWindow(
 		"UI Example",
 		sdl2.WINDOWPOS_UNDEFINED,
 		sdl2.WINDOWPOS_UNDEFINED,
-		SCREEN_WIDTH,
-		SCREEN_HEIGHT,
+		window_width,
+		window_height,
 		{.OPENGL},
 	)
 	assert(window != nil, sdl2.GetErrorString())
 	defer sdl2.DestroyWindow(window)
 	// sdl2.SetWindowFullscreen(window, sdl2.WINDOW_FULLSCREEN)
+
+	run(window, window_width, window_height, 60)
+}
+
+
+run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32) {
+	target_dt: f64 = 1000 / f64(refresh_rate)
+
+	game := Game{}
 
 	sdl2.GL_SetAttribute(.CONTEXT_PROFILE_MASK, i32(sdl2.GLprofile.CORE))
 	sdl2.GL_SetAttribute(.CONTEXT_MAJOR_VERSION, GL_VERSION_MAJOR)
@@ -144,7 +113,6 @@ main :: proc() {
 		gl.STATIC_DRAW,
 	)
 
-	perf_frequency = f64(sdl2.GetPerformanceFrequency())
 	start: f64
 	end: f64
 
@@ -189,7 +157,7 @@ main :: proc() {
 
 		gl.UniformMatrix4fv(uniforms["u_transform"].location, 1, false, &u_transform[0, 0])
 
-		gl.Viewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
+		gl.Viewport(0, 0, window_width, window_height)
 		gl.ClearColor(0.5, 0.7, 1.0, 1.0)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
 
@@ -199,18 +167,18 @@ main :: proc() {
 
 		free_all(context.temp_allocator)
 
-		// // Timing (avoid looping too fast)
-		// end = get_time()
-		// to_sleep := time.Duration((TARGET_DT - (end - start)) * f64(time.Millisecond))
-		// time.accurate_sleep(to_sleep)
-		// end = get_time()
-		// game.fps = 1000 / (end - start)
+		// Timing (avoid looping too fast)
+		end = get_time()
+		to_sleep := time.Duration((target_dt - (end - start)) * f64(time.Millisecond))
+		time.accurate_sleep(to_sleep)
+		end = get_time()
+		game.fps = 1000 / (end - start)
 	}
 }
 
 
 get_time :: proc() -> f64 {
-	return f64(sdl2.GetPerformanceCounter()) * 1000 / perf_frequency
+	return f64(sdl2.GetPerformanceCounter()) * 1000 / f64(sdl2.GetPerformanceFrequency())
 }
 
 vertex_source := `#version 330 core

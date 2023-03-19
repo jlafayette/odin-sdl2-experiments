@@ -9,6 +9,7 @@ import "vendor:sdl2"
 import mu "vendor:microui"
 
 import "dynamic_text"
+import "shader"
 
 when ODIN_OS == .Windows {
 	import win32 "core:sys/windows"
@@ -575,6 +576,9 @@ mu_update :: proc(ctx: ^mu.Context, win: ^WindowSettings, state: ^State) {
 		if .SUBMIT in mu.button(ctx, "Dynamic Text") {
 			launch(state_get_launch_settings(state))
 		}
+		if .SUBMIT in mu.button(ctx, "Shader Test") {
+			launch_shader(state_get_launch_settings(state))
+		}
 		mu.layout_row(ctx, {75, 40, 40, 40, 40})
 		mu.label(ctx, "Displays:")
 		for _, i in state.ui_display_options.values {
@@ -698,6 +702,38 @@ launch :: proc(win: WindowSettings) {
 	// discard any events from the launched window
 	event: sdl2.Event
 	for sdl2.PollEvent(&event) do continue
+}
+
+launch_shader :: proc(win: WindowSettings) {
+	window := sdl2.CreateWindow(
+		"Shader test",
+		sdl2.WINDOWPOS_UNDEFINED_DISPLAY(win.display_index),
+		sdl2.WINDOWPOS_UNDEFINED_DISPLAY(win.display_index),
+		win.w,
+		win.h,
+		{.SHOWN, .FULLSCREEN, .ALLOW_HIGHDPI, .OPENGL},
+	)
+	assert(window != nil, sdl2.GetErrorString())
+	defer sdl2.DestroyWindow(window)
+
+	mode: sdl2.DisplayMode
+	found := window_settings_get_matching_display_mode(win, &mode)
+	err := sdl2.SetWindowDisplayMode(window, &mode)
+	if err != 0 {
+		fmt.println("Failed to set window display mode with err:", err)
+	}
+
+	// renderer := sdl2.CreateRenderer(window, -1, sdl2.RENDERER_ACCELERATED)
+	// assert(renderer != nil, sdl2.GetErrorString())
+	// defer sdl2.DestroyRenderer(renderer)
+
+	shader.run(window, win.w, win.h, win.refresh_rate)
+
+	// discard any events from the launched window
+	event: sdl2.Event
+	for sdl2.PollEvent(&event) do continue
+
+
 }
 
 get_display_mode_count :: proc(index: i32) -> i32 {
