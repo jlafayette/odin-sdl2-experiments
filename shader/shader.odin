@@ -1,5 +1,6 @@
 package main
 
+import "core:mem"
 import "core:fmt"
 import "core:time"
 import "core:strings"
@@ -21,9 +22,8 @@ main :: proc() {
 	defer sdl2.Quit()
 
 	displayMode: sdl2.DisplayMode
-	sdl2.GetCurrentDisplayMode(1, &displayMode)
-	screen_width := displayMode.w
-	screen_height := displayMode.h
+	sdl2.GetCurrentDisplayMode(0, &displayMode)
+	refresh_rate := displayMode.refresh_rate
 
 	window_width: i32 = 1280
 	window_height: i32 = 960
@@ -40,7 +40,9 @@ main :: proc() {
 	defer sdl2.DestroyWindow(window)
 	// sdl2.SetWindowFullscreen(window, sdl2.WINDOW_FULLSCREEN)
 
-	run(window, window_width, window_height, 60)
+	fmt.printf("%dx%d %d\n", window_width, window_height, refresh_rate)
+
+	run(window, window_width, window_height, refresh_rate)
 }
 
 
@@ -68,7 +70,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	gl.UseProgram(program)
 
 	uniforms := gl.get_uniforms_from_program(program)
-	defer delete(uniforms)
+	defer gl.destroy_uniforms(uniforms)
 
 	vao: u32
 	gl.GenVertexArrays(1, &vao)
