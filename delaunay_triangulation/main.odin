@@ -1,11 +1,57 @@
 package delaunay_triangulation
 
+import "core:c"
 import "core:fmt"
 import "core:mem"
 import "core:time"
 import "vendor:sdl2"
 import gl "vendor:OpenGL"
 import "core:math/linalg/glsl"
+
+
+Vertex :: struct {
+	pos: glsl.vec3,
+}
+
+Mesh :: struct {
+	vertices: [dynamic]Vertex,
+	indices:  [dynamic]u16,
+	modified: bool,
+}
+
+MAX_VERTICES :: 256
+
+init_mesh :: proc(mesh: ^Mesh) {
+	v_size := reserve_dynamic_array(&mesh.vertices, MAX_VERTICES)
+	append(
+		&mesh.vertices,
+		Vertex{{+0.5, +0.5, 0.0}},
+		Vertex{{+0.5, -0.5, 0.0}},
+		Vertex{{-0.5, -0.5, 0.0}},
+		Vertex{{-0.5, +0.5, 0.0}},
+	)
+	reserve_dynamic_array(&mesh.indices, MAX_VERTICES * 3)
+	append(&mesh.indices, 0, 1, 2, 1, 2, 3)
+	mesh.modified = true
+}
+
+add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
+	if len(mesh.vertices) >= MAX_VERTICES {
+		return
+	}
+	// TODO: calculate proper triangulation
+	append(&mesh.vertices, Vertex{{x, y, 0.0}})
+	i3 := len(mesh.vertices) - 1 // 3
+	i2 := len(mesh.vertices) - 2 // 2
+	i1 := len(mesh.vertices) - 3 // 1
+	append(&mesh.indices, u16(i1), u16(i2), u16(i3))
+	mesh.modified = true
+}
+
+destory_mesh :: proc(mesh: ^Mesh) {
+	delete(mesh.vertices)
+	delete(mesh.indices)
+}
 
 
 main :: proc() {
@@ -84,16 +130,10 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	gl.BindVertexArray(vao)
 
 	// Vertices
-	Vertex :: struct {
-		pos: glsl.vec3,
-	}
-	vertices := []Vertex{
-		{{+0.5, +0.5, 0.0}},
-		{{+0.5, -0.5, 0.0}},
-		{{-0.5, -0.5, 0.0}},
-		{{-0.5, +0.5, 0.0}},
-	}
-	indices := []u16{0, 1, 3, 1, 2, 3}
+	mesh := Mesh{}
+	init_mesh(&mesh)
+	defer destory_mesh(&mesh)
+
 	// Vertex Buffer Object
 	vbo: u32
 	gl.GenBuffers(1, &vbo)
@@ -101,9 +141,9 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
 	gl.BufferData(
 		gl.ARRAY_BUFFER,
-		len(vertices) * size_of(vertices[0]),
-		raw_data(vertices),
-		gl.STATIC_DRAW,
+		len(mesh.vertices) * size_of(mesh.vertices[0]),
+		raw_data(mesh.vertices[:]),
+		gl.DYNAMIC_DRAW,
 	)
 	// 0: (matches with location=0 in the vertex shader)
 	// 3: this is a vec3
@@ -121,12 +161,12 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo)
 	gl.BufferData(
 		gl.ELEMENT_ARRAY_BUFFER,
-		len(indices) * size_of(indices[0]),
-		raw_data(indices),
-		gl.STATIC_DRAW,
+		len(mesh.indices) * size_of(mesh.indices[0]),
+		raw_data(mesh.indices[:]),
+		gl.DYNAMIC_DRAW,
 	)
 
-	wireframe := false
+	wireframe := true
 
 	start_tick := time.tick_now()
 	game_loop: for {
@@ -143,31 +183,58 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 					sdl2.PushEvent(&sdl2.Event{type = .QUIT})
 				}
 			case .MOUSEBUTTONDOWN:
-				wireframe = true
+				switch event.button.button {
+				case sdl2.BUTTON_LEFT:
+					// place vertex at mouse location
+					cx, cy: c.int
+					sdl2.GetMouseState(&cx, &cy)
+					glx := (f32(cx) / f32(window_width)) * 2 - 1
+					gly := (1 - (f32(cy) / f32(window_height))) * 2 - 1
+					fmt.printf("got mouse click at (%d, %d) (%.2f, %.2f)\n", cx, cy, glx, gly)
+					add_vertex(&mesh, glx, gly)
+				case sdl2.BUTTON_RIGHT:
+					wireframe = true
+				}
 			case .MOUSEBUTTONUP:
-				wireframe = false
+				switch event.button.button {
+				case sdl2.BUTTON_RIGHT:
+					wireframe = false
+				}
 			}
 		}
 
 		gl.Viewport(0, 0, window_width, window_height)
 		gl.ClearColor(0.25, 0.35, 0.5, 1.0)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
-		if wireframe {
-			gl.UseProgram(program2)
-			gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
-			gl.DrawElements(gl.TRIANGLES, i32(len(indices)), gl.UNSIGNED_SHORT, nil)
-			gl.UseProgram(program1)
-			gl.PointSize(10)
-			gl.PolygonMode(gl.FRONT_AND_BACK, gl.POINT)
-			gl.DrawElements(gl.TRIANGLES, i32(len(indices)), gl.UNSIGNED_SHORT, nil)
-			gl.LineWidth(3)
-			gl.PolygonMode(gl.FRONT_AND_BACK, gl.LINE)
-			gl.DrawElements(gl.TRIANGLES, i32(len(indices)), gl.UNSIGNED_SHORT, nil)
-		} else {
-			gl.UseProgram(program1)
-			gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
-			gl.DrawElements(gl.TRIANGLES, i32(len(indices)), gl.UNSIGNED_SHORT, nil)
+
+		if mesh.modified {
+			gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
+			gl.BufferData(
+				gl.ARRAY_BUFFER,
+				len(mesh.vertices) * size_of(mesh.vertices[0]),
+				raw_data(mesh.vertices[:]),
+				gl.DYNAMIC_DRAW,
+			)
+			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo)
+			gl.BufferData(
+				gl.ELEMENT_ARRAY_BUFFER,
+				len(mesh.indices) * size_of(mesh.indices[0]),
+				raw_data(mesh.indices[:]),
+				gl.DYNAMIC_DRAW,
+			)
+			mesh.modified = false
 		}
+
+		gl.UseProgram(program2)
+		gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
+		gl.DrawElements(gl.TRIANGLES, i32(len(mesh.indices)), gl.UNSIGNED_SHORT, nil)
+		gl.UseProgram(program1)
+		gl.PointSize(10)
+		gl.PolygonMode(gl.FRONT_AND_BACK, gl.POINT)
+		gl.DrawElements(gl.TRIANGLES, i32(len(mesh.indices)), gl.UNSIGNED_SHORT, nil)
+		gl.LineWidth(3)
+		gl.PolygonMode(gl.FRONT_AND_BACK, gl.LINE)
+		gl.DrawElements(gl.TRIANGLES, i32(len(mesh.indices)), gl.UNSIGNED_SHORT, nil)
 
 		sdl2.GL_SwapWindow(window)
 
