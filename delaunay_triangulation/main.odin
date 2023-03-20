@@ -22,7 +22,7 @@ Mesh :: struct {
 MAX_VERTICES :: 256
 
 init_mesh :: proc(mesh: ^Mesh) {
-	v_size := reserve_dynamic_array(&mesh.vertices, MAX_VERTICES)
+	reserve_dynamic_array(&mesh.vertices, MAX_VERTICES)
 	append(
 		&mesh.vertices,
 		Vertex{{+0.5, +0.5, 0.0}},
