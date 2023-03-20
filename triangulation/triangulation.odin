@@ -1,4 +1,4 @@
-package delaunay_triangulation
+package triangulation
 
 import "core:c"
 import "core:fmt"
@@ -7,6 +7,8 @@ import "core:time"
 import "vendor:sdl2"
 import gl "vendor:OpenGL"
 import "core:math/linalg/glsl"
+
+import "delaunay"
 
 
 Vertex :: struct {
@@ -41,10 +43,16 @@ add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
 	}
 	// TODO: calculate proper triangulation
 	append(&mesh.vertices, Vertex{{x, y, 0.0}})
-	i3 := len(mesh.vertices) - 1 // 3
-	i2 := len(mesh.vertices) - 2 // 2
-	i1 := len(mesh.vertices) - 3 // 1
-	append(&mesh.indices, u16(i1), u16(i2), u16(i3))
+	// i3 := len(mesh.vertices) - 1 // 3
+	// i2 := len(mesh.vertices) - 2 // 2
+	// i1 := len(mesh.vertices) - 3 // 1
+	// append(&mesh.indices, u16(i1), u16(i2), u16(i3))
+	points := make([dynamic]delaunay.Point, 0, len(mesh.vertices))
+	defer delete(points)
+	for vertex in mesh.vertices {
+		append(&points, delaunay.Point(vertex.pos.xy))
+	}
+	delaunay.triangulate(&points, &mesh.indices)
 	mesh.modified = true
 }
 
