@@ -62,15 +62,20 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	gl.load_up_to(3, 3, sdl2.gl_set_proc_address)
 
 	// Create and link shader program
-	program, program_ok := gl.load_shaders_source(vertex_source, fragment_source)
+	program1, program_ok := gl.load_shaders_source(vertex_source, fragment_source1)
 	if !program_ok {
 		fmt.eprintln("Failed to create GLSL program")
 		return
 	}
-	defer gl.DeleteProgram(program)
-	gl.UseProgram(program)
-	uniforms := gl.get_uniforms_from_program(program)
-	defer gl.destroy_uniforms(uniforms)
+	defer gl.DeleteProgram(program1)
+	gl.UseProgram(program1)
+	uniforms1 := gl.get_uniforms_from_program(program1)
+	defer gl.destroy_uniforms(uniforms1)
+
+	// Create second shader program
+	program2, program2_ok := gl.load_shaders_source(vertex_source, fragment_source2)
+	if !program2_ok do return
+	defer gl.DeleteProgram(program2)
 
 	// Vertex Array Object
 	vao: u32
@@ -148,6 +153,10 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		gl.ClearColor(0.25, 0.35, 0.5, 1.0)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
 		if wireframe {
+			gl.UseProgram(program2)
+			gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
+			gl.DrawElements(gl.TRIANGLES, i32(len(indices)), gl.UNSIGNED_SHORT, nil)
+			gl.UseProgram(program1)
 			gl.PointSize(10)
 			gl.PolygonMode(gl.FRONT_AND_BACK, gl.POINT)
 			gl.DrawElements(gl.TRIANGLES, i32(len(indices)), gl.UNSIGNED_SHORT, nil)
@@ -155,6 +164,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			gl.PolygonMode(gl.FRONT_AND_BACK, gl.LINE)
 			gl.DrawElements(gl.TRIANGLES, i32(len(indices)), gl.UNSIGNED_SHORT, nil)
 		} else {
+			gl.UseProgram(program1)
 			gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
 			gl.DrawElements(gl.TRIANGLES, i32(len(indices)), gl.UNSIGNED_SHORT, nil)
 		}
@@ -174,11 +184,22 @@ void main() {
 }
 `
 
-fragment_source := `#version 330 core
+fragment_source1 := `#version 330 core
 
 out vec4 FragColor;
 
 void main() {
 	FragColor = vec4(1.0, 0.5, 0.2, 1.0);
+}
+`
+
+fragment_source2 := `#version 330 core
+
+out vec4 FragColor;
+
+void main() {
+	vec3 c = vec3(1.0, 0.5, 0.2);
+	c *= 0.75;
+	FragColor = vec4(c.xyz, 1.0);
 }
 `
