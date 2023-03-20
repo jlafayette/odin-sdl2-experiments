@@ -48,7 +48,7 @@ add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
 	mesh.modified = true
 }
 
-destory_mesh :: proc(mesh: ^Mesh) {
+destroy_mesh :: proc(mesh: ^Mesh) {
 	delete(mesh.vertices)
 	delete(mesh.indices)
 }
@@ -132,7 +132,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	// Vertices
 	mesh := Mesh{}
 	init_mesh(&mesh)
-	defer destory_mesh(&mesh)
+	defer destroy_mesh(&mesh)
 
 	// Vertex Buffer Object
 	vbo: u32
@@ -166,8 +166,6 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		gl.DYNAMIC_DRAW,
 	)
 
-	wireframe := true
-
 	start_tick := time.tick_now()
 	game_loop: for {
 		duration := time.tick_since(start_tick)
@@ -192,13 +190,6 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 					gly := (1 - (f32(cy) / f32(window_height))) * 2 - 1
 					fmt.printf("got mouse click at (%d, %d) (%.2f, %.2f)\n", cx, cy, glx, gly)
 					add_vertex(&mesh, glx, gly)
-				case sdl2.BUTTON_RIGHT:
-					wireframe = true
-				}
-			case .MOUSEBUTTONUP:
-				switch event.button.button {
-				case sdl2.BUTTON_RIGHT:
-					wireframe = false
 				}
 			}
 		}
