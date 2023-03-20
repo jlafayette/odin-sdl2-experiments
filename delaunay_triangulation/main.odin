@@ -82,7 +82,13 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	Vertex :: struct {
 		pos: glsl.vec3,
 	}
-	vertices := []Vertex{{{-0.5, -0.5, 0.0}}, {{+0.5, -0.5, 0.0}}, {{+0.0, +0.5, 0.0}}}
+	vertices := []Vertex{
+		{{+0.5, +0.5, 0.0}},
+		{{+0.5, -0.5, 0.0}},
+		{{-0.5, -0.5, 0.0}},
+		{{-0.5, +0.5, 0.0}},
+	}
+	indices := []u16{0, 1, 3, 1, 2, 3}
 	// Vertex Buffer Object
 	vbo: u32
 	gl.GenBuffers(1, &vbo)
@@ -103,6 +109,20 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	gl.VertexAttribPointer(0, 3, gl.FLOAT, false, size_of(Vertex), offset_of(Vertex, pos))
 	gl.EnableVertexAttribArray(0)
 
+	// Element Buffer Object
+	ebo: u32
+	gl.GenBuffers(1, &ebo)
+	defer gl.DeleteBuffers(1, &ebo)
+	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo)
+	gl.BufferData(
+		gl.ELEMENT_ARRAY_BUFFER,
+		len(indices) * size_of(indices[0]),
+		raw_data(indices),
+		gl.STATIC_DRAW,
+	)
+
+	wireframe := false
+
 	start_tick := time.tick_now()
 	game_loop: for {
 		duration := time.tick_since(start_tick)
@@ -117,13 +137,28 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 				if event.key.keysym.sym == .ESCAPE {
 					sdl2.PushEvent(&sdl2.Event{type = .QUIT})
 				}
+			case .MOUSEBUTTONDOWN:
+				wireframe = true
+			case .MOUSEBUTTONUP:
+				wireframe = false
 			}
 		}
 
 		gl.Viewport(0, 0, window_width, window_height)
-		gl.ClearColor(0.5, 0.7, 1.0, 1.0)
+		gl.ClearColor(0.25, 0.35, 0.5, 1.0)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
-		gl.DrawArrays(gl.TRIANGLES, 0, 3)
+		if wireframe {
+			gl.PointSize(10)
+			gl.PolygonMode(gl.FRONT_AND_BACK, gl.POINT)
+			gl.DrawElements(gl.TRIANGLES, i32(len(indices)), gl.UNSIGNED_SHORT, nil)
+			gl.LineWidth(3)
+			gl.PolygonMode(gl.FRONT_AND_BACK, gl.LINE)
+			gl.DrawElements(gl.TRIANGLES, i32(len(indices)), gl.UNSIGNED_SHORT, nil)
+		} else {
+			gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
+			gl.DrawElements(gl.TRIANGLES, i32(len(indices)), gl.UNSIGNED_SHORT, nil)
+		}
+
 		sdl2.GL_SwapWindow(window)
 
 		free_all(context.temp_allocator)
