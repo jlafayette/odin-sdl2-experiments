@@ -4,149 +4,221 @@ import "core:fmt"
 import "core:math"
 import "core:math/linalg/glsl"
 
-Point :: distinct glsl.vec2
-Edge :: struct {
-	p0: Point,
-	p1: Point,
-	i0: u16,
-	i1: u16,
+I_Triangle :: struct {
+	p1:       int,
+	p2:       int,
+	p3:       int,
+	complete: bool,
 }
-edges_equal :: proc(a, b: Edge) -> bool {
-	return a.p0 == b.p0 && a.p1 == b.p1
+I_Edge :: struct {
+	p1: int,
+	p2: int,
 }
-Circle :: struct {
-	center: Point,
-	radius: f32,
-}
-Triangle :: struct {
-	p0:      Point,
-	p1:      Point,
-	p2:      Point,
-	e:       [3]Edge,
-	indices: [3]u16,
-	circle:  Circle,
-}
-Delaunay :: struct {
-	triangles: [dynamic]Triangle,
-	edges:     [dynamic]Edge,
-}
+Pt :: distinct glsl.vec2
 
-EPS :: 1e-4
+EPSILON :: 1e-4
 
-new_tri :: proc(p0, p1, p2: Point, i0, i1, i2: u16) -> Triangle {
-	ax := p1.x - p0.x
-	ay := p1.y - p0.y
-	bx := p2.x - p1.x
-	by := p2.y - p1.y
 
-	m := p1.x * p1.x - p0.x * p0.x + p1.y * p1.y - p0.y * p0.y
-	u := p2.x * p2.x - p0.x * p0.x + p2.y * p2.y - p0.y * p0.y
-	s := 1 / (2 * (ax * by - ay * bx))
-
-	circle := Circle{}
-	circle.center.x = ((p2.y - p0.y) * m + (p0.y - p1.y) * u) * s
-	circle.center.y = ((p0.x - p2.x) * m + (p1.x - p0.x) * u) * s
-	dx := p0.x - circle.center.x
-	dy := p0.y - circle.center.y
-	circle.radius = dx * dx + dy * dy
-	return(
-		Triangle{
-			p0,
-			p1,
-			p2,
-			{{p0, p1, i0, i1}, {p1, p2, i1, i2}, {p0, p2, i0, i2}},
-			{i0, i1, i2},
-			circle,
-		} \
-	)
-}
-
-triangulate :: proc(points: ^[dynamic]Point, indices: ^[dynamic]u16) {
-	clear_dynamic_array(indices)
-	if len(points) < 3 {
-		return
+triangulate :: proc(pxyz: ^[dynamic]Pt, v_backing: ^[dynamic]I_Triangle) -> int {
+	// clear_dynamic_array(v)
+	if len(pxyz) < 3 {
+		return 0
 	}
 
-	xmin := points[0].x
+	nv := len(pxyz)
+	// clear_dynamic_array(v_backing)
+	v := v_backing[:0]
+
+
+	trimax := 4 * len(pxyz)
+	// complete := make([dynamic]bool, trimax, trimax)
+	// defer delete(complete)
+	emax := 200
+	edges := make([dynamic]I_Edge, 0, emax)
+	defer delete(edges)
+
+	/*
+		find min and max vertex bounds
+		this allows for calculation of the bounding triangle
+	*/
+	xmin := pxyz[0].x
 	xmax := xmin
-	ymin := points[0].y
+	ymin := pxyz[0].y
 	ymax := ymin
-	for pt in points {
+	for pt in pxyz {
 		xmin = math.min(xmin, pt.x)
 		xmax = math.max(xmax, pt.x)
 		ymin = math.min(ymin, pt.y)
 		ymax = math.max(ymax, pt.y)
 	}
-	// fmt.printf("xmin: %.2f, xmax: %.2f, ymin: %.2f, ymax: %.2f\n", xmin, xmax, ymin, ymax)
-
 	dx := xmax - xmin
 	dy := ymax - ymin
 	dmax := math.max(dx, dy)
 	midx := (xmin + xmax) / 2
 	midy := (ymin + ymax) / 2
 
-	d := Delaunay{}
-	reserve_dynamic_array(&d.triangles, len(points))
-	reserve_dynamic_array(&d.edges, len(points))
-	p0 := Point{midx - 20 * dmax, midy - dmax}
-	p1 := Point{midx, midy + 20 * dmax}
-	p2 := Point{midx + 20 * dmax, midy - dmax}
-	append(&d.triangles, new_tri(p0, p1, p2, 0, 0, 0)) // no indices, this is the big tri
+	/*
+		Setup the super triangle
+		this encompasses all the points
+		The coordinates are added to the end of the vertex list.
+		The supertriangle is the first in the tirangle list.
+	*/
+	{
 
-	// TODO: make better capacity guesses
-	edges := make([dynamic]Edge, len(points) * 3)
-	tmps := make([dynamic]Triangle, len(points))
-	for pt, pt_i in points {
+		p1 := Pt{-100, -100}
+		i1 := len(pxyz)
+		p2 := Pt{0, 100}
+		i2 := len(pxyz) + 1
+		p3 := Pt{100, -100}
+		i3 := len(pxyz) + 2
+		append(pxyz, p1, p2, p3)
+		last_i := len(v)
+		v = v_backing[:last_i + 1]
+		v[last_i] = I_Triangle{i1, i2, i3, false}
+		// complete[0] = false
+	}
+
+	/*
+		Include each point one at a time into the existing mesh
+	*/
+	fmt.printf("\niloop")
+	for i := 0; i < nv; i += 1 {
+		xp := pxyz[i].x
+		yp := pxyz[i].y
+		fmt.printf("\n|%d<%d(%.2f,%.2f)", i, nv, xp, yp)
 		clear_dynamic_array(&edges)
-		clear_dynamic_array(&tmps)
 
-		for tri, tri_i in d.triangles {
-			// check if point is inside of the triangle circumcircle
-			dist :=
-				(tri.circle.center.x - pt.x) * (tri.circle.center.x - pt.x) +
-				(tri.circle.center.y - pt.y) * (tri.circle.center.y - pt.y)
-			if (dist - tri.circle.radius) <= EPS {
-				append(&edges, tri.e[0])
-				append(&edges, tri.e[1])
-				append(&edges, tri.e[2])
-			} else {
-				append(&tmps, tri)
-			}
-		}
-		// Mark duplicate edges
-		edge_dup := make([dynamic]bool, len(edges))
-		for edge, edge_i in edges {
-			append(&edge_dup, false)
-		}
-		for e0, e0_i in edges {
-			for e1_i := e0_i; e1_i < len(edges); e1_i += 1 {
-				if e0_i == e1_i {
-					continue
-				}
-				if edge_dup[e0_i] || edge_dup[e1_i] {
-					continue
-				}
-				if edges_equal(e0, edges[e1_i]) {
-					edge_dup[e1_i] = true
-				}
-			}
-		}
-		// Erase duplicates from d.edges
+		/*
+			Set up the edge buffer
+			if the point(xp, yp) is inside the circumcircle then the
+			three edges of that triangle are added to the edge buffer and
+			that triangle is removed
+		*/
+		ntri := len(v)
+		fmt.printf("\n  jloop.%d", ntri)
 
-		// Update triangulation
-		for e, i in edges {
-			if edge_dup[i] {
+		for j := 0; j < ntri; j += 1 {
+			fmt.printf("|%d<%d", j, ntri)
+			if v[j].complete {
 				continue
 			}
-			append(&tmps, new_tri(e.p0, e.p1, {pt.x, pt.y}, e.i0, e.i1, u16(pt_i)))
+			x1 := pxyz[v[j].p1].x
+			y1 := pxyz[v[j].p1].y
+			x2 := pxyz[v[j].p2].x
+			y2 := pxyz[v[j].p2].y
+			x3 := pxyz[v[j].p3].x
+			y3 := pxyz[v[j].p3].y
+			inside, xc, yc, r := circum_circle(xp, yp, x1, y1, x2, y2, x3, y3)
+			if (xc < xp && ((xp - xc) * (xp - xc)) > r) {
+				v[j].complete = true
+			}
+			if inside {
+				append(&edges, I_Edge{v[j].p1, v[j].p2})
+				append(&edges, I_Edge{v[j].p2, v[j].p3})
+				append(&edges, I_Edge{v[j].p3, v[j].p1})
+				v[j] = v[ntri - 1]
+				v = v_backing[:len(v) - 1]
+				ntri -= 1
+				j -= 1
+			}
 		}
 
-		// replace triangles with tmps
-		// might be better to do a pointer swap or something
-		clear_dynamic_array(&d.triangles)
-		for tri in tmps {
-			append(&d.triangles, tri)
+		/*
+			Tag multiple edges
+		*/
+		for j := 0; j < len(edges); j += 1 {
+			for k := j + 1; k < len(edges); k += 1 {
+				if ((edges[j].p1 == edges[k].p2) && (edges[j].p2 == edges[k].p1)) {
+					edges[j].p1 = -1
+					edges[j].p2 = -1
+					edges[k].p1 = -1
+					edges[k].p2 = -1
+				}
+				// In case of anticlockwise (shouldn't be needed)
+				if ((edges[j].p1 == edges[k].p1) && (edges[j].p2 == edges[j].p2)) {
+					edges[j].p1 = -1
+					edges[j].p2 = -1
+					edges[k].p1 = -1
+					edges[k].p2 = -1
+				}
+			}
+		}
+
+		/*
+			Form new triangles for the current point
+			skipping over any tagged edges.
+			All edges are arranged in clockwise order
+		*/
+		for j := 0; j < len(edges); j += 1 {
+			if edges[j].p1 < 0 || edges[j].p2 < 0 {
+				continue
+			}
+			last_i := len(v)
+			v = v_backing[:last_i + 1]
+			v[last_i] = I_Triangle{edges[j].p1, edges[j].p2, i, false}
+			// append(v, I_Triangle{edges[j].p1, edges[j].p2, i, false})
+			// complete[len(v) - 1] = false
 		}
 	}
 
+	/*
+		Remove triangles with supertriangle vertices
+		These are triangles that have a vertex number greater than nv
+	*/
+	for i := 0; i < len(v); i += 1 {
+		if v[i].p1 >= nv || v[i].p2 >= nv || v[i].p3 >= nv {
+			// TODO: figure out how to shrink dynamic array
+			// Maybe use a slice?
+		}
+	}
+	return len(v)
+}
+
+circum_circle :: proc(xp, yp, x1, y1, x2, y2, x3, y3: f32) -> (bool, f32, f32, f32) {
+	xc: f32 = 0
+	yc: f32 = 0
+	rsqr: f32 = 0
+
+	fabsy1y2 := math.abs(y1 - y2)
+	fabsy2y3 := math.abs(y2 - y3)
+
+	if fabsy1y2 < EPSILON && fabsy2y3 < EPSILON {
+		return false, xc, yc, rsqr
+	}
+	if fabsy1y2 < EPSILON {
+		m2 := -(x3 - x2) / (y3 - y2)
+		mx2 := (x2 + x3) / 2
+		my2 := (y2 + y3) / 2
+		xc = (x2 + x1) / 2
+		yc = m2 * (xc - mx2) + my2
+	} else if fabsy2y3 < EPSILON {
+		m1 := -(x2 - x1) / (y2 - y1)
+		mx1 := (x1 + x2) / 2
+		my1 := (y1 + y2) / 2
+		xc = (x3 + x2) / 2
+		yc = m1 * (xc - mx1) + my1
+	} else {
+		m1 := -(x2 - x1) / (y2 - y1)
+		m2 := -(x3 - x2) / (y3 - y2)
+		mx1 := (x1 + x2) / 2
+		mx2 := (x2 + x3) / 2
+		my1 := (y1 + y2) / 2
+		my2 := (y2 + y3) / 2
+		xc = (m1 * mx1 - m2 * mx2 + my2 - my1) / (m1 - m2)
+		if fabsy1y2 > fabsy2y3 {
+			yc = m1 * (xc - mx1) + my1
+		} else {
+			yc = m2 * (xc - mx2) + my2
+		}
+	}
+
+	dx := x2 - xc
+	dy := y2 - yc
+	rsqr = dx * dx + dy * dy
+	dx = xp - xc
+	dy = yp - yc
+	drsqr := dx * dx + dy * dy
+
+	result := (drsqr - rsqr) <= EPSILON
+	return result, xc, yc, rsqr
 }

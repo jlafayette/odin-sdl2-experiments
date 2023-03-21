@@ -3,7 +3,9 @@ package triangulation
 import "core:c"
 import "core:fmt"
 import "core:mem"
+import "core:slice"
 import "core:time"
+import "core:strings"
 import "vendor:sdl2"
 import gl "vendor:OpenGL"
 import "core:math/linalg/glsl"
@@ -27,13 +29,14 @@ init_mesh :: proc(mesh: ^Mesh) {
 	reserve_dynamic_array(&mesh.vertices, MAX_VERTICES)
 	append(
 		&mesh.vertices,
-		Vertex{{+0.5, +0.5, 0.0}},
-		Vertex{{+0.5, -0.5, 0.0}},
-		Vertex{{-0.5, -0.5, 0.0}},
-		Vertex{{-0.5, +0.5, 0.0}},
+		Vertex{{+0.53, +0.51, 0.0}},
+		Vertex{{+0.56, -0.52, 0.0}},
+		Vertex{{-0.58, -0.54, 0.0}},
+		// Vertex{{-0.5, +0.55, 0.0}},
 	)
 	reserve_dynamic_array(&mesh.indices, MAX_VERTICES * 3)
-	append(&mesh.indices, 0, 1, 2, 1, 2, 3)
+	// append(&mesh.indices, 0, 1, 2, 1, 2, 3)
+	add_vertex(mesh, -0.5, +0.55)
 	mesh.modified = true
 }
 
@@ -47,12 +50,60 @@ add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
 	// i2 := len(mesh.vertices) - 2 // 2
 	// i1 := len(mesh.vertices) - 3 // 1
 	// append(&mesh.indices, u16(i1), u16(i2), u16(i3))
-	points := make([dynamic]delaunay.Point, 0, len(mesh.vertices))
+
+	// sort mesh vertices by increasing x
+	vertex_less :: proc(i, j: Vertex) -> bool {
+		return i.pos.x < j.pos.x
+	}
+	slice.sort_by(mesh.vertices[:], vertex_less)
+	nv := len(mesh.vertices)
+
+	points := make([dynamic]delaunay.Pt, 0, len(mesh.vertices) + 3)
 	defer delete(points)
 	for vertex in mesh.vertices {
-		append(&points, delaunay.Point(vertex.pos.xy))
+		append(&points, delaunay.Pt(vertex.pos.xy))
 	}
-	delaunay.triangulate(&points, &mesh.indices)
+	cap_backing_triangles := len(mesh.vertices) * 3
+	i_triangles := make([dynamic]delaunay.I_Triangle, cap_backing_triangles, cap_backing_triangles)
+	defer delete(i_triangles)
+	fmt.print("<...\n")
+	i_tri_i := delaunay.triangulate(&points, &i_triangles)
+	fmt.print("\n")
+	fmt.println(points)
+	for tri in i_triangles[:i_tri_i] {
+		fmt.printf("-%d,%d,%d-", tri.p1, tri.p2, tri.p3)
+	}
+	fmt.print("\n")
+	for tri in i_triangles[:i_tri_i] {
+		sb := strings.builder_make_len_cap(0, 16)
+		defer strings.builder_destroy(&sb)
+		fmt.sbprint(&sb, "-")
+		tri_points := [3]int{tri.p1, tri.p2, tri.p3}
+		for pt, i in tri_points {
+			if pt >= nv {
+				fmt.sbprint(&sb, "_")
+			} else {
+				fmt.sbprintf(&sb, "%d", pt)
+			}
+			if i < len(tri_points) - 1 {
+				fmt.sbprint(&sb, ",")
+			}
+		}
+		fmt.sbprint(&sb, "-")
+		fmt.print(strings.to_string(sb))
+	}
+	fmt.print("\n")
+	// fmt.println(i_triangles[:i_tri_i])
+	fmt.print("\n>")
+	clear_dynamic_array(&mesh.indices)
+
+	for tri in i_triangles[:i_tri_i] {
+		if tri.p1 >= nv || tri.p2 >= nv || tri.p3 >= nv {
+			continue
+		}
+		append(&mesh.indices, u16(tri.p1), u16(tri.p2), u16(tri.p3))
+	}
+
 	mesh.modified = true
 }
 
