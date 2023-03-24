@@ -72,10 +72,15 @@ add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
 	cap_backing_triangles := len(mesh.vertices) * 3
 	i_triangles := make([dynamic]delaunay.I_Triangle, cap_backing_triangles, cap_backing_triangles)
 	defer delete(i_triangles)
-	i_tri_i := delaunay.triangulate(&points, &i_triangles)
+
+	i_points_i, i_tri_i := delaunay.triangulate(&points, &i_triangles)
+
+	// temp see transform remapping on points is working
+	for p, i in points[:i_points_i] {
+		mesh.vertices[i].pos = {p.x, p.y, 0.0}
+	}
 
 	clear_dynamic_array(&mesh.indices)
-
 	for tri in i_triangles[:i_tri_i] {
 		if tri.p1 >= nv || tri.p2 >= nv || tri.p3 >= nv {
 			continue
