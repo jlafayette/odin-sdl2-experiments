@@ -19,6 +19,8 @@ RED :: Color{255, 0, 0, 255}
 GREEN :: Color{0, 255, 0, 255}
 BLUE :: Color{0, 0, 255, 255}
 
+EPSILON :: 1e-4
+
 SelectedPoint :: struct {
 	point: Point,
 	index: int,
@@ -33,12 +35,12 @@ Game :: struct {
 	sel:           Sel,
 	mouse_clicked: bool,
 }
+
 Circle :: struct {
 	center: Point,
 	radius: f32,
 }
 
-EPSILON :: 1e-4
 
 main :: proc() {
 	track: mem.Tracking_Allocator
@@ -76,7 +78,6 @@ _main :: proc() {
 
 	run(window_width, window_height, renderer, 60)
 }
-
 
 run :: proc(window_width: i32, window_height: i32, renderer: ^sdl2.Renderer, refresh_rate: i32) {
 
@@ -169,17 +170,24 @@ run :: proc(window_width: i32, window_height: i32, renderer: ^sdl2.Renderer, ref
 }
 
 
-get_time :: proc() -> f64 {
+get_time :: proc "contextless" () -> f64 {
 	return f64(sdl2.GetPerformanceCounter()) * 1000 / f64(sdl2.GetPerformanceFrequency())
 }
 
-mouse_point :: proc() -> Point {
+
+mouse_point :: proc "contextless" () -> Point {
 	cx, cy: c.int
 	sdl2.GetMouseState(&cx, &cy)
 	return Point{f32(cx), f32(cy)}
 }
 
-draw_point :: proc(renderer: ^sdl2.Renderer, pt: Point, size: i32 = 10, color: Color = WHITE) {
+
+draw_point :: proc "contextless" (
+	renderer: ^sdl2.Renderer,
+	pt: Point,
+	size: i32 = 10,
+	color: Color = WHITE,
+) {
 	sdl2.SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a)
 	x := i32(math.round(pt.x))
 	y := i32(math.round(pt.y))
@@ -191,12 +199,15 @@ draw_point :: proc(renderer: ^sdl2.Renderer, pt: Point, size: i32 = 10, color: C
 	sdl2.RenderDrawRect(renderer, &rect)
 }
 
-
-draw_circle_f32 :: proc(renderer: ^sdl2.Renderer, cx, cy, radius: f32, color: Color = WHITE) {
+draw_circle_f32 :: proc "contextless" (
+	renderer: ^sdl2.Renderer,
+	cx, cy, radius: f32,
+	color: Color = WHITE,
+) {
 	draw_circle(renderer, i32(math.round(cx)), i32(math.round(cy)), i32(math.round(radius)), color)
 }
-
-draw_circle :: proc(
+// Midpoint circle algorithm
+draw_circle :: proc "contextless" (
 	renderer: ^sdl2.Renderer,
 	center_x, center_y, radius: i32,
 	color: Color = WHITE,
@@ -232,7 +243,7 @@ draw_circle :: proc(
 }
 
 
-inside :: proc(p: Point, circle: Circle) -> bool {
+inside :: proc "contextless" (p: Point, circle: Circle) -> bool {
 	dx := circle.center.x - p.x
 	dy := circle.center.y - p.y
 	dist := dx * dx + dy * dy
@@ -240,14 +251,14 @@ inside :: proc(p: Point, circle: Circle) -> bool {
 }
 
 
-distance :: proc(p1, p2: Point) -> f32 {
+distance :: proc "contextless" (p1, p2: Point) -> f32 {
 	dx := p2.x - p1.x
 	dy := p2.y - p1.y
 	return math.sqrt_f32(dx * dx + dy * dy)
 }
 
 
-circum_circle :: proc(p1, p2, p3: Point) -> Circle {
+circum_circle :: proc "contextless" (p1, p2, p3: Point) -> Circle {
 	ax := p2.x - p1.x
 	ay := p2.y - p1.y
 	bx := p3.x - p1.x
@@ -264,64 +275,4 @@ circum_circle :: proc(p1, p2, p3: Point) -> Circle {
 	dy := p1.y - circle_y
 	radius := dx * dx + dy * dy
 	return Circle{{circle_x, circle_y}, radius}
-}
-
-
-c_circum_circle :: proc(pt: Point, tri_points: [3]Point) -> (bool, f32, f32, f32) {
-
-	xp := pt.x
-	yp := pt.y
-	x1 := tri_points[0].x
-	y1 := tri_points[0].y
-	x2 := tri_points[1].x
-	y2 := tri_points[1].y
-	x3 := tri_points[2].x
-	y3 := tri_points[2].y
-
-	xc: f32 = 0
-	yc: f32 = 0
-	rsqr: f32 = 0
-
-	fabsy1y2 := math.abs(y1 - y2)
-	fabsy2y3 := math.abs(y2 - y3)
-
-	if fabsy1y2 < EPSILON && fabsy2y3 < EPSILON {
-		return false, xc, yc, rsqr
-	}
-	if fabsy1y2 < EPSILON {
-		m2 := -(x3 - x2) / (y3 - y2)
-		mx2 := (x2 + x3) / 2
-		my2 := (y2 + y3) / 2
-		xc = (x2 + x1) / 2
-		yc = m2 * (xc - mx2) + my2
-	} else if fabsy2y3 < EPSILON {
-		m1 := -(x2 - x1) / (y2 - y1)
-		mx1 := (x1 + x2) / 2
-		my1 := (y1 + y2) / 2
-		xc = (x3 + x2) / 2
-		yc = m1 * (xc - mx1) + my1
-	} else {
-		m1 := -(x2 - x1) / (y2 - y1)
-		m2 := -(x3 - x2) / (y3 - y2)
-		mx1 := (x1 + x2) / 2
-		mx2 := (x2 + x3) / 2
-		my1 := (y1 + y2) / 2
-		my2 := (y2 + y3) / 2
-		xc = (m1 * mx1 - m2 * mx2 + my2 - my1) / (m1 - m2)
-		if fabsy1y2 > fabsy2y3 {
-			yc = m1 * (xc - mx1) + my1
-		} else {
-			yc = m2 * (xc - mx2) + my2
-		}
-	}
-
-	dx := x2 - xc
-	dy := y2 - yc
-	rsqr = dx * dx + dy * dy
-	dx = xp - xc
-	dy = yp - yc
-	drsqr := dx * dx + dy * dy
-	result := drsqr <= rsqr
-	// result := (drsqr - rsqr) <= EPSILON
-	return result, xc, yc, rsqr
 }
