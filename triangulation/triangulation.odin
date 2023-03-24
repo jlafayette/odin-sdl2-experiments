@@ -51,12 +51,7 @@ add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
 	if len(mesh.vertices) >= MAX_VERTICES {
 		return
 	}
-	// TODO: calculate proper triangulation
 	append(&mesh.vertices, Vertex{{x, y, 0.0}})
-	// i3 := len(mesh.vertices) - 1 // 3
-	// i2 := len(mesh.vertices) - 2 // 2
-	// i1 := len(mesh.vertices) - 3 // 1
-	// append(&mesh.indices, u16(i1), u16(i2), u16(i3))
 	clear_dynamic_array(&mesh.point_indices)
 	for _, i in mesh.vertices {
 		append(&mesh.point_indices, u16(i))
@@ -218,14 +213,20 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		if mesh.modified {
 			update_buffers(tri_buffers, mesh.vertices[:], mesh.indices[:])
 			update_buffers(point_buffers, mesh.vertices[:], mesh.point_indices[:])
+			fmt.println(mesh.point_indices)
 			mesh.modified = false
 		}
 
+		// Drawing is done back to front, so later things are drawn on top
 		{
 			start_draw(&tri_buffers)
 			defer end_draw()
 			gl.UseProgram(program2)
 			gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
+			gl.DrawElements(gl.TRIANGLES, i32(len(mesh.indices)), gl.UNSIGNED_SHORT, nil)
+			gl.UseProgram(program1)
+			gl.LineWidth(3)
+			gl.PolygonMode(gl.FRONT_AND_BACK, gl.LINE)
 			gl.DrawElements(gl.TRIANGLES, i32(len(mesh.indices)), gl.UNSIGNED_SHORT, nil)
 		}
 		{
@@ -234,15 +235,9 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			gl.UseProgram(program1)
 			gl.PointSize(10)
 			gl.PolygonMode(gl.FRONT_AND_BACK, gl.POINT)
-			gl.DrawElements(gl.TRIANGLES, i32(len(mesh.point_indices)), gl.UNSIGNED_SHORT, nil)
+			gl.DrawElements(gl.POINTS, i32(len(mesh.point_indices)), gl.UNSIGNED_SHORT, nil)
 		}
-		{
-			start_draw(&tri_buffers)
-			defer end_draw()
-			gl.LineWidth(3)
-			gl.PolygonMode(gl.FRONT_AND_BACK, gl.LINE)
-			gl.DrawElements(gl.TRIANGLES, i32(len(mesh.indices)), gl.UNSIGNED_SHORT, nil)
-		}
+
 		sdl2.GL_SwapWindow(window)
 
 		free_all(context.temp_allocator)
@@ -254,11 +249,13 @@ create_buffers :: proc(vertices: []Vertex, indices: []u16) -> Buffers {
 	vao: u32
 	gl.GenVertexArrays(1, &vao)
 	gl.BindVertexArray(vao)
+	defer gl.BindVertexArray(0)
 
 	// Vertex Buffer Object
 	vbo: u32
 	gl.GenBuffers(1, &vbo)
 	gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
+	defer gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 	gl.BufferData(
 		gl.ARRAY_BUFFER,
 		len(vertices) * size_of(vertices[0]),
@@ -278,6 +275,7 @@ create_buffers :: proc(vertices: []Vertex, indices: []u16) -> Buffers {
 	ebo: u32
 	gl.GenBuffers(1, &ebo)
 	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo)
+	defer gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
 	gl.BufferData(
 		gl.ELEMENT_ARRAY_BUFFER,
 		len(indices) * size_of(indices[0]),
@@ -291,7 +289,7 @@ create_buffers :: proc(vertices: []Vertex, indices: []u16) -> Buffers {
 update_buffers :: proc(buffers: Buffers, vertices: []Vertex, indices: []u16) {
 	{
 		gl.BindBuffer(gl.ARRAY_BUFFER, buffers.vbo)
-		// defer gl.BindBuffer(gl.ARRAY_BUFFER, 0)
+		defer gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 		gl.BufferData(
 			gl.ARRAY_BUFFER,
 			len(vertices) * size_of(vertices[0]),
@@ -301,7 +299,7 @@ update_buffers :: proc(buffers: Buffers, vertices: []Vertex, indices: []u16) {
 	}
 	{
 		gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.ebo)
-		// defer gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
+		defer gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
 		gl.BufferData(
 			gl.ELEMENT_ARRAY_BUFFER,
 			len(indices) * size_of(indices[0]),
@@ -313,9 +311,13 @@ update_buffers :: proc(buffers: Buffers, vertices: []Vertex, indices: []u16) {
 
 start_draw :: proc "contextless" (buffers: ^Buffers) {
 	gl.BindVertexArray(buffers.vao)
+	gl.BindBuffer(gl.ARRAY_BUFFER, buffers.vbo)
+	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.ebo)
 }
 end_draw :: proc "contextless" () {
 	gl.BindVertexArray(0)
+	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
+	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
 }
 
 delete_buffers :: proc(buffers: ^Buffers) {
