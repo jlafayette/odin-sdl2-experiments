@@ -27,6 +27,8 @@ Circle :: struct {
 triangulate :: proc(points: ^[dynamic]Point, tris: ^[dynamic]I_Triangle) -> int {
 	clear_dynamic_array(tris)
 
+	// find min and max boundries of the point cloud
+
 	// this is a weird standin for a slice...
 	return len(tris)
 }

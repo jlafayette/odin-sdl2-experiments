@@ -18,9 +18,15 @@ Vertex :: struct {
 }
 
 Mesh :: struct {
-	vertices: [dynamic]Vertex,
-	indices:  [dynamic]u16,
-	modified: bool,
+	vertices:      [dynamic]Vertex,
+	indices:       [dynamic]u16,
+	point_indices: [dynamic]u16,
+	modified:      bool,
+}
+Buffers :: struct {
+	vao: u32,
+	vbo: u32,
+	ebo: u32,
 }
 
 MAX_VERTICES :: 256
@@ -34,9 +40,10 @@ init_mesh :: proc(mesh: ^Mesh) {
 		Vertex{{-0.58, -0.54, 0.0}},
 		// Vertex{{-0.5, +0.55, 0.0}},
 	)
+	reserve_dynamic_array(&mesh.point_indices, MAX_VERTICES)
 	reserve_dynamic_array(&mesh.indices, MAX_VERTICES * 3)
-	// append(&mesh.indices, 0, 1, 2, 1, 2, 3)
 	add_vertex(mesh, -0.5, +0.55)
+	append(&mesh.indices, 0, 1, 2, 1, 2, 3)
 	mesh.modified = true
 }
 
@@ -50,6 +57,10 @@ add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
 	// i2 := len(mesh.vertices) - 2 // 2
 	// i1 := len(mesh.vertices) - 3 // 1
 	// append(&mesh.indices, u16(i1), u16(i2), u16(i3))
+	clear_dynamic_array(&mesh.point_indices)
+	for _, i in mesh.vertices {
+		append(&mesh.point_indices, u16(i))
+	}
 
 	// sort mesh vertices by increasing x
 	vertex_less :: proc(i, j: Vertex) -> bool {
@@ -83,6 +94,7 @@ add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
 destroy_mesh :: proc(mesh: ^Mesh) {
 	delete(mesh.vertices)
 	delete(mesh.indices)
+	delete(mesh.point_indices)
 }
 
 
@@ -155,48 +167,21 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	if !program2_ok do return
 	defer gl.DeleteProgram(program2)
 
-	// Vertex Array Object
-	vao: u32
-	gl.GenVertexArrays(1, &vao)
-	defer gl.DeleteVertexArrays(1, &vao)
-	gl.BindVertexArray(vao)
+	// // Vertex Array Object
+	// vao: u32
+	// gl.GenVertexArrays(1, &vao)
+	// defer gl.DeleteVertexArrays(1, &vao)
+	// gl.BindVertexArray(vao)
 
 	// Vertices
 	mesh := Mesh{}
 	init_mesh(&mesh)
 	defer destroy_mesh(&mesh)
 
-	// Vertex Buffer Object
-	vbo: u32
-	gl.GenBuffers(1, &vbo)
-	defer gl.DeleteBuffers(1, &vbo)
-	gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
-	gl.BufferData(
-		gl.ARRAY_BUFFER,
-		len(mesh.vertices) * size_of(mesh.vertices[0]),
-		raw_data(mesh.vertices[:]),
-		gl.DYNAMIC_DRAW,
-	)
-	// 0: (matches with location=0 in the vertex shader)
-	// 3: this is a vec3
-	// type: they are floats
-	// false: not normalized (to 0.0-1.0 or -1.0-1.0 range, for int,byte)
-	// stride: space between consective vertex attributes (0=auto for tightly packed)
-	// offset: space between start of Vertex and pos attribute
-	gl.VertexAttribPointer(0, 3, gl.FLOAT, false, size_of(Vertex), offset_of(Vertex, pos))
-	gl.EnableVertexAttribArray(0)
-
-	// Element Buffer Object
-	ebo: u32
-	gl.GenBuffers(1, &ebo)
-	defer gl.DeleteBuffers(1, &ebo)
-	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo)
-	gl.BufferData(
-		gl.ELEMENT_ARRAY_BUFFER,
-		len(mesh.indices) * size_of(mesh.indices[0]),
-		raw_data(mesh.indices[:]),
-		gl.DYNAMIC_DRAW,
-	)
+	tri_buffers := create_buffers(mesh.vertices[:], mesh.indices[:])
+	defer delete_buffers(&tri_buffers)
+	point_buffers := create_buffers(mesh.vertices[:], mesh.point_indices[:])
+	defer delete_buffers(&point_buffers)
 
 	start_tick := time.tick_now()
 	game_loop: for {
@@ -231,39 +216,114 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		gl.Clear(gl.COLOR_BUFFER_BIT)
 
 		if mesh.modified {
-			gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
-			gl.BufferData(
-				gl.ARRAY_BUFFER,
-				len(mesh.vertices) * size_of(mesh.vertices[0]),
-				raw_data(mesh.vertices[:]),
-				gl.DYNAMIC_DRAW,
-			)
-			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo)
-			gl.BufferData(
-				gl.ELEMENT_ARRAY_BUFFER,
-				len(mesh.indices) * size_of(mesh.indices[0]),
-				raw_data(mesh.indices[:]),
-				gl.DYNAMIC_DRAW,
-			)
+			update_buffers(tri_buffers, mesh.vertices[:], mesh.indices[:])
+			update_buffers(point_buffers, mesh.vertices[:], mesh.point_indices[:])
 			mesh.modified = false
 		}
 
-		gl.UseProgram(program2)
-		gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
-		gl.DrawElements(gl.TRIANGLES, i32(len(mesh.indices)), gl.UNSIGNED_SHORT, nil)
-		gl.UseProgram(program1)
-		gl.PointSize(10)
-		gl.PolygonMode(gl.FRONT_AND_BACK, gl.POINT)
-		gl.DrawElements(gl.TRIANGLES, i32(len(mesh.indices)), gl.UNSIGNED_SHORT, nil)
-		gl.LineWidth(3)
-		gl.PolygonMode(gl.FRONT_AND_BACK, gl.LINE)
-		gl.DrawElements(gl.TRIANGLES, i32(len(mesh.indices)), gl.UNSIGNED_SHORT, nil)
-
+		{
+			start_draw(&tri_buffers)
+			defer end_draw()
+			gl.UseProgram(program2)
+			gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
+			gl.DrawElements(gl.TRIANGLES, i32(len(mesh.indices)), gl.UNSIGNED_SHORT, nil)
+		}
+		{
+			start_draw(&point_buffers)
+			defer end_draw()
+			gl.UseProgram(program1)
+			gl.PointSize(10)
+			gl.PolygonMode(gl.FRONT_AND_BACK, gl.POINT)
+			gl.DrawElements(gl.TRIANGLES, i32(len(mesh.point_indices)), gl.UNSIGNED_SHORT, nil)
+		}
+		{
+			start_draw(&tri_buffers)
+			defer end_draw()
+			gl.LineWidth(3)
+			gl.PolygonMode(gl.FRONT_AND_BACK, gl.LINE)
+			gl.DrawElements(gl.TRIANGLES, i32(len(mesh.indices)), gl.UNSIGNED_SHORT, nil)
+		}
 		sdl2.GL_SwapWindow(window)
 
 		free_all(context.temp_allocator)
 	}
 }
+
+create_buffers :: proc(vertices: []Vertex, indices: []u16) -> Buffers {
+	// Vertex Array Object
+	vao: u32
+	gl.GenVertexArrays(1, &vao)
+	gl.BindVertexArray(vao)
+
+	// Vertex Buffer Object
+	vbo: u32
+	gl.GenBuffers(1, &vbo)
+	gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
+	gl.BufferData(
+		gl.ARRAY_BUFFER,
+		len(vertices) * size_of(vertices[0]),
+		raw_data(vertices),
+		gl.DYNAMIC_DRAW,
+	)
+	// 0: (matches with location=0 in the vertex shader)
+	// 3: this is a vec3
+	// type: they are floats
+	// false: not normalized (to 0.0-1.0 or -1.0-1.0 range, for int,byte)
+	// stride: space between consective vertex attributes (0=auto for tightly packed)
+	// offset: space between start of Vertex and pos attribute
+	gl.VertexAttribPointer(0, 3, gl.FLOAT, false, size_of(Vertex), offset_of(Vertex, pos))
+	gl.EnableVertexAttribArray(0)
+
+	// Element Buffer Object
+	ebo: u32
+	gl.GenBuffers(1, &ebo)
+	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo)
+	gl.BufferData(
+		gl.ELEMENT_ARRAY_BUFFER,
+		len(indices) * size_of(indices[0]),
+		raw_data(indices),
+		gl.DYNAMIC_DRAW,
+	)
+
+	return Buffers{vao, vbo, ebo}
+}
+
+update_buffers :: proc(buffers: Buffers, vertices: []Vertex, indices: []u16) {
+	{
+		gl.BindBuffer(gl.ARRAY_BUFFER, buffers.vbo)
+		// defer gl.BindBuffer(gl.ARRAY_BUFFER, 0)
+		gl.BufferData(
+			gl.ARRAY_BUFFER,
+			len(vertices) * size_of(vertices[0]),
+			raw_data(vertices),
+			gl.DYNAMIC_DRAW,
+		)
+	}
+	{
+		gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.ebo)
+		// defer gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
+		gl.BufferData(
+			gl.ELEMENT_ARRAY_BUFFER,
+			len(indices) * size_of(indices[0]),
+			raw_data(indices[:]),
+			gl.DYNAMIC_DRAW,
+		)
+	}
+}
+
+start_draw :: proc "contextless" (buffers: ^Buffers) {
+	gl.BindVertexArray(buffers.vao)
+}
+end_draw :: proc "contextless" () {
+	gl.BindVertexArray(0)
+}
+
+delete_buffers :: proc(buffers: ^Buffers) {
+	gl.DeleteVertexArrays(1, &buffers.vao)
+	gl.DeleteBuffers(1, &buffers.vbo)
+	gl.DeleteBuffers(1, &buffers.ebo)
+}
+
 
 vertex_source := `#version 330 core
 
