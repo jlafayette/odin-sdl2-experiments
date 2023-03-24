@@ -58,43 +58,16 @@ add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
 	slice.sort_by(mesh.vertices[:], vertex_less)
 	nv := len(mesh.vertices)
 
-	points := make([dynamic]delaunay.Pt, 0, len(mesh.vertices) + 3)
+	points := make([dynamic]delaunay.Point, 0, len(mesh.vertices) + 3)
 	defer delete(points)
 	for vertex in mesh.vertices {
-		append(&points, delaunay.Pt(vertex.pos.xy))
+		append(&points, delaunay.Point(vertex.pos.xy))
 	}
 	cap_backing_triangles := len(mesh.vertices) * 3
 	i_triangles := make([dynamic]delaunay.I_Triangle, cap_backing_triangles, cap_backing_triangles)
 	defer delete(i_triangles)
-	fmt.print("<...\n")
 	i_tri_i := delaunay.triangulate(&points, &i_triangles)
-	fmt.print("\n")
-	fmt.println(points)
-	for tri in i_triangles[:i_tri_i] {
-		fmt.printf("-%d,%d,%d-", tri.p1, tri.p2, tri.p3)
-	}
-	fmt.print("\n")
-	for tri in i_triangles[:i_tri_i] {
-		sb := strings.builder_make_len_cap(0, 16)
-		defer strings.builder_destroy(&sb)
-		fmt.sbprint(&sb, "-")
-		tri_points := [3]int{tri.p1, tri.p2, tri.p3}
-		for pt, i in tri_points {
-			if pt >= nv {
-				fmt.sbprint(&sb, "_")
-			} else {
-				fmt.sbprintf(&sb, "%d", pt)
-			}
-			if i < len(tri_points) - 1 {
-				fmt.sbprint(&sb, ",")
-			}
-		}
-		fmt.sbprint(&sb, "-")
-		fmt.print(strings.to_string(sb))
-	}
-	fmt.print("\n")
-	// fmt.println(i_triangles[:i_tri_i])
-	fmt.print("\n>")
+
 	clear_dynamic_array(&mesh.indices)
 
 	for tri in i_triangles[:i_tri_i] {
