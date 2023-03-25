@@ -137,13 +137,25 @@ run :: proc(window_width: i32, window_height: i32, renderer: ^sdl2.Renderer, ref
 		radius := math.sqrt_f32(circle.radius)
 
 		// Render
+		draw_line(renderer, game.points[0], game.points[1])
+		draw_line(renderer, game.points[1], game.points[2])
+		draw_line(renderer, game.points[2], game.points[0])
 		for point, i in game.points {
 			color := WHITE
 			if i == 3 {
-				if inside(point, circle) {
-					color = RED
-				} else {
-					color = BLUE
+				inside_circle := inside(point, circle)
+				inside_triangle := point_within_triangle2(
+					point,
+					game.points[0],
+					game.points[1],
+					game.points[2],
+				)
+				color = BLUE
+				if inside_circle {
+					color = Color{185, 0, 185, 255}
+					if inside_triangle {
+						color = RED
+					}
 				}
 			}
 			draw_point(renderer = renderer, pt = point, color = color)
@@ -198,6 +210,13 @@ draw_point :: proc "contextless" (
 	rect.h = size
 	sdl2.RenderDrawRect(renderer, &rect)
 }
+
+
+draw_line :: proc "contextless" (renderer: ^sdl2.Renderer, p1, p2: Point, color: Color = WHITE) {
+	sdl2.SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a)
+	sdl2.RenderDrawLineF(renderer, p1.x, p1.y, p2.x, p2.y)
+}
+
 
 draw_circle_f32 :: proc "contextless" (
 	renderer: ^sdl2.Renderer,
@@ -275,4 +294,40 @@ circum_circle :: proc "contextless" (p1, p2, p3: Point) -> Circle {
 	dy := p1.y - circle_y
 	radius := dx * dx + dy * dy
 	return Circle{{circle_x, circle_y}, radius}
+}
+
+// Check both clockwise and counterclockwise
+point_within_triangle2 :: proc "contextless" (p, v1, v2, v3: Point) -> bool {
+	dir1 := point_within_triangle(p, v1, v2, v3)
+	if dir1 do return true
+	return point_within_triangle(p, v1, v3, v2)
+}
+
+// Only clockwise
+point_within_triangle :: proc "contextless" (p, v1, v2, v3: Point) -> bool {
+	ab := Point{v2[0] - v1[0], v2[1] - v1[1]}
+	bc := Point{v3[0] - v2[0], v3[1] - v2[1]}
+	ca := Point{v1[0] - v3[0], v1[1] - v3[1]}
+	ap := Point{p[0] - v1[0], p[1] - v1[1]}
+	bp := Point{p[0] - v2[0], p[1] - v2[1]}
+	cp := Point{p[0] - v3[0], p[1] - v3[1]}
+
+	n1 := Point{ab[1], -ab[0]}
+	n2 := Point{bc[1], -bc[0]}
+	n3 := Point{ca[1], -ca[0]}
+
+	s1: f32 = ap[0] * n1[0] + ap[1] * n1[1]
+	s2: f32 = bp[0] * n2[0] + bp[1] * n2[1]
+	s3: f32 = cp[0] * n3[0] + cp[1] * n3[1]
+
+	tolerance: f32 = 0.0001
+
+	if ((s1 < 0 && s2 < 0 && s3 < 0) ||
+		   (s1 < tolerance && s2 < 0 && s3 < 0) ||
+		   (s2 < tolerance && s1 < 0 && s3 < 0) ||
+		   (s3 < tolerance && s1 < 0 && s2 < 0)) {
+		return true
+	} else {
+		return false
+	}
 }
