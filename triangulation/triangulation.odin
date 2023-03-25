@@ -43,7 +43,7 @@ init_mesh :: proc(mesh: ^Mesh) {
 	reserve_dynamic_array(&mesh.point_indices, MAX_VERTICES)
 	reserve_dynamic_array(&mesh.indices, MAX_VERTICES * 3)
 	add_vertex(mesh, -0.5, +0.55)
-	append(&mesh.indices, 0, 1, 2, 1, 2, 3)
+	// append(&mesh.indices, 0, 1, 2, 1, 2, 3)
 	mesh.modified = true
 }
 
@@ -70,7 +70,7 @@ add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
 		append(&points, delaunay.Point(vertex.pos.xy))
 	}
 	cap_backing_triangles := len(mesh.vertices) * 3
-	i_triangles := make([dynamic]delaunay.I_Triangle, cap_backing_triangles, cap_backing_triangles)
+	i_triangles := make([dynamic]delaunay.I_Verts, cap_backing_triangles, cap_backing_triangles)
 	defer delete(i_triangles)
 
 	i_points_i, i_tri_i := delaunay.triangulate(&points, &i_triangles)
@@ -81,11 +81,11 @@ add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
 	}
 
 	clear_dynamic_array(&mesh.indices)
-	for tri in i_triangles[:i_tri_i] {
-		if tri.p1 >= nv || tri.p2 >= nv || tri.p3 >= nv {
-			continue
-		}
-		append(&mesh.indices, u16(tri.p1), u16(tri.p2), u16(tri.p3))
+	for tri in i_triangles[:] {
+		// if tri.x >= nv || tri.y >= nv || tri.z >= nv {
+		// 	continue
+		// }
+		append(&mesh.indices, u16(tri.x), u16(tri.y), u16(tri.z))
 	}
 
 	mesh.modified = true
