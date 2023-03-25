@@ -38,12 +38,10 @@ init_mesh :: proc(mesh: ^Mesh) {
 		Vertex{{+0.53, +0.51, 0.0}},
 		Vertex{{+0.56, -0.52, 0.0}},
 		Vertex{{-0.58, -0.54, 0.0}},
-		// Vertex{{-0.5, +0.55, 0.0}},
 	)
 	reserve_dynamic_array(&mesh.point_indices, MAX_VERTICES)
 	reserve_dynamic_array(&mesh.indices, MAX_VERTICES * 3)
 	add_vertex(mesh, -0.5, +0.55)
-	// append(&mesh.indices, 0, 1, 2, 1, 2, 3)
 	mesh.modified = true
 }
 add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
@@ -66,7 +64,7 @@ add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
 	i_triangles := make([dynamic]delaunay.I_Triangle, tri_cap, tri_cap)
 	defer delete(i_triangles)
 
-	point_slice, tri_slice := delaunay.triangulate2(&points, &i_triangles)
+	point_slice, tri_slice := delaunay.triangulate(&points, &i_triangles)
 
 	clear_dynamic_array(&mesh.indices)
 	nv := len(point_slice)
@@ -74,49 +72,6 @@ add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
 		if tri.x >= nv || tri.y >= nv || tri.z >= nv {
 			continue
 		}
-		append(&mesh.indices, u16(tri.x), u16(tri.y), u16(tri.z))
-	}
-
-	mesh.modified = true
-}
-add_vertex_old :: proc(mesh: ^Mesh, x, y: f32) {
-	if len(mesh.vertices) >= MAX_VERTICES {
-		return
-	}
-	append(&mesh.vertices, Vertex{{x, y, 0.0}})
-	clear_dynamic_array(&mesh.point_indices)
-	for _, i in mesh.vertices {
-		append(&mesh.point_indices, u16(i))
-	}
-
-	// sort mesh vertices by increasing x
-	vertex_less :: proc(i, j: Vertex) -> bool {
-		return i.pos.x < j.pos.x
-	}
-	slice.sort_by(mesh.vertices[:], vertex_less)
-	nv := len(mesh.vertices)
-
-	points := make([dynamic]delaunay.Point, 0, len(mesh.vertices) + 3)
-	defer delete(points)
-	for vertex in mesh.vertices {
-		append(&points, delaunay.Point(vertex.pos.xy))
-	}
-	cap_backing_triangles := len(mesh.vertices) * 3
-	i_triangles := make([dynamic]delaunay.I_Verts, cap_backing_triangles, cap_backing_triangles)
-	defer delete(i_triangles)
-
-	i_points_i, i_tri_i := delaunay.triangulate1(&points, &i_triangles)
-
-	// temp see transform remapping on points is working
-	for p, i in points[:i_points_i] {
-		mesh.vertices[i].pos = {p.x, p.y, 0.0}
-	}
-
-	clear_dynamic_array(&mesh.indices)
-	for tri in i_triangles[:] {
-		// if tri.x >= nv || tri.y >= nv || tri.z >= nv {
-		// 	continue
-		// }
 		append(&mesh.indices, u16(tri.x), u16(tri.y), u16(tri.z))
 	}
 
@@ -250,7 +205,6 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		if mesh.modified {
 			update_buffers(tri_buffers, mesh.vertices[:], mesh.indices[:])
 			update_buffers(point_buffers, mesh.vertices[:], mesh.point_indices[:])
-			fmt.println(mesh.indices)
 			mesh.modified = false
 		}
 
