@@ -46,8 +46,40 @@ init_mesh :: proc(mesh: ^Mesh) {
 	// append(&mesh.indices, 0, 1, 2, 1, 2, 3)
 	mesh.modified = true
 }
-
 add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
+	if len(mesh.vertices) >= MAX_VERTICES {
+		fmt.println("ERROR: max vertices count reached", MAX_VERTICES)
+		return
+	}
+	append(&mesh.vertices, Vertex{{x, y, 0.0}})
+	clear_dynamic_array(&mesh.point_indices)
+	for _, i in mesh.vertices {
+		append(&mesh.point_indices, u16(i))
+	}
+
+	points := make([dynamic]delaunay.Point, 0, len(mesh.vertices) + 3)
+	defer delete(points)
+	for vertex in mesh.vertices {
+		append(&points, delaunay.Point(vertex.pos.xy))
+	}
+	tri_cap := len(mesh.vertices) * 3
+	i_triangles := make([dynamic]delaunay.I_Triangle, tri_cap, tri_cap)
+	defer delete(i_triangles)
+
+	point_slice, tri_slice := delaunay.triangulate2(&points, &i_triangles)
+
+	clear_dynamic_array(&mesh.indices)
+	nv := len(point_slice)
+	for tri in tri_slice {
+		if tri.x >= nv || tri.y >= nv || tri.z >= nv {
+			continue
+		}
+		append(&mesh.indices, u16(tri.x), u16(tri.y), u16(tri.z))
+	}
+
+	mesh.modified = true
+}
+add_vertex_old :: proc(mesh: ^Mesh, x, y: f32) {
 	if len(mesh.vertices) >= MAX_VERTICES {
 		return
 	}
@@ -73,7 +105,7 @@ add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
 	i_triangles := make([dynamic]delaunay.I_Verts, cap_backing_triangles, cap_backing_triangles)
 	defer delete(i_triangles)
 
-	i_points_i, i_tri_i := delaunay.triangulate(&points, &i_triangles)
+	i_points_i, i_tri_i := delaunay.triangulate1(&points, &i_triangles)
 
 	// temp see transform remapping on points is working
 	for p, i in points[:i_points_i] {
@@ -218,7 +250,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		if mesh.modified {
 			update_buffers(tri_buffers, mesh.vertices[:], mesh.indices[:])
 			update_buffers(point_buffers, mesh.vertices[:], mesh.point_indices[:])
-			fmt.println(mesh.point_indices)
+			fmt.println(mesh.indices)
 			mesh.modified = false
 		}
 
