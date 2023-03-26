@@ -69,9 +69,6 @@ add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
 	clear_dynamic_array(&mesh.indices)
 	nv := len(point_slice)
 	for tri in tri_slice {
-		if tri.x >= nv || tri.y >= nv || tri.z >= nv {
-			continue
-		}
 		append(&mesh.indices, u16(tri.x), u16(tri.y), u16(tri.z))
 	}
 
@@ -199,7 +196,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		}
 
 		gl.Viewport(0, 0, window_width, window_height)
-		gl.ClearColor(0.25, 0.35, 0.5, 1.0)
+		gl.ClearColor(0, 0, 0, 1.0)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
 
 		if mesh.modified {
@@ -216,7 +213,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			gl.PolygonMode(gl.FRONT_AND_BACK, gl.FILL)
 			gl.DrawElements(gl.TRIANGLES, i32(len(mesh.indices)), gl.UNSIGNED_SHORT, nil)
 			gl.UseProgram(program1)
-			gl.LineWidth(3)
+			gl.LineWidth(1)
 			gl.PolygonMode(gl.FRONT_AND_BACK, gl.LINE)
 			gl.DrawElements(gl.TRIANGLES, i32(len(mesh.indices)), gl.UNSIGNED_SHORT, nil)
 		}
@@ -224,7 +221,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			start_draw(&point_buffers)
 			defer end_draw()
 			gl.UseProgram(program1)
-			gl.PointSize(10)
+			gl.PointSize(3)
 			gl.PolygonMode(gl.FRONT_AND_BACK, gl.POINT)
 			gl.DrawElements(gl.POINTS, i32(len(mesh.point_indices)), gl.UNSIGNED_SHORT, nil)
 		}
@@ -332,7 +329,7 @@ fragment_source1 := `#version 330 core
 out vec4 FragColor;
 
 void main() {
-	FragColor = vec4(1.0, 0.5, 0.2, 1.0);
+	FragColor = vec4(1.0, 1.0, 1.0, 1.0);
 }
 `
 
@@ -341,8 +338,8 @@ fragment_source2 := `#version 330 core
 out vec4 FragColor;
 
 void main() {
-	vec3 c = vec3(1.0, 0.5, 0.2);
-	c *= 0.75;
+	vec3 c = vec3(1.0, 1.0, 1.0);
+	c *= 0.15;
 	FragColor = vec4(c.xyz, 1.0);
 }
 `

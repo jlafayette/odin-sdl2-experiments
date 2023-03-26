@@ -105,7 +105,7 @@ triangulate :: proc(
 		for j := 0; j < len(edges); j += 1 {
 			enclosing_polygon := false
 			for tri in triangles {
-				if edge_matches_tri(edges[j], tri) {
+				if tri_includes_edge(edges[j], tri) {
 					enclosing_polygon = true
 					break
 				}
@@ -114,7 +114,7 @@ triangulate :: proc(
 			// was was previously the border before that triangle was deleted
 			// are preserved and have a triangle added from them to the current
 			// point
-			if edge_matches_tri(edges[j], super_tri) {
+			if tri_includes_edge(edges[j], super_tri) {
 				enclosing_polygon = true
 			}
 
@@ -139,11 +139,6 @@ triangulate :: proc(
 			i -= 1
 		}
 	}
-	/*
-		TODO: remove the supertriangle vertices from the vertex list
-		(currently this is done in the calling function before translating
-		them to vertex positions)
-	*/
 
 	// undo the 0-1 mapping
 	for p, i in points_backing {
@@ -156,7 +151,7 @@ triangulate :: proc(
 }
 
 
-edge_matches_tri :: proc(edge: I_Edge, tri: I_Triangle) -> bool {
+tri_includes_edge :: proc(edge: I_Edge, tri: I_Triangle) -> bool {
 	return(
 		edge.xy == tri.xy ||
 		edge.xy == tri.yx ||
