@@ -3,6 +3,7 @@ package delaunay_triangulation
 import "core:fmt"
 import "core:math"
 import "core:slice"
+import "core:time"
 import "core:container/queue"
 import "core:math/linalg/glsl"
 
@@ -26,10 +27,15 @@ triangulate :: proc(
 	[]Point,
 	[]I_Triangle,
 ) {
+	start_tick := time.tick_now()
+	defer {
+		duration := time.tick_since(start_tick)
+		t := f32(time.duration_milliseconds(duration))
+		fmt.printf("delaunay.triangulate with %d vertices took %.4f ms\n", len(points_backing), t)
+	}
 	// subroutine triangulate
 	// input : vertex list
 	// output : triangle list
-
 
 	// initialize the triangle list
 	clear_dynamic_array(triangles_backing)

@@ -69,6 +69,12 @@ random_vertices :: proc(mesh: ^Mesh, count: int = 1000) {
 	update_triangulation(mesh)
 }
 update_triangulation :: proc(mesh: ^Mesh) {
+	start_tick := time.tick_now()
+	defer {
+		duration := time.tick_since(start_tick)
+		t := f32(time.duration_milliseconds(duration))
+		fmt.printf("Triangulation of %d vertices took %.4f ms\n", len(mesh.vertices), t)
+	}
 	clear_dynamic_array(&mesh.point_indices)
 	for _, i in mesh.vertices {
 		append(&mesh.point_indices, u16(i))
