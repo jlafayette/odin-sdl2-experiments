@@ -7,6 +7,7 @@ import "core:mem"
 import "core:slice"
 import "core:time"
 import "core:strings"
+import "core:strconv"
 import "core:math/rand"
 import "core:math/linalg/glsl"
 import "vendor:sdl2"
@@ -109,7 +110,8 @@ main :: proc() {
 	args := os.args[1:]
 	// profile := slice.contains(args, "--profile") || slice.contains(args, "-p")
 	// snapshot := slice.contains(args, "--snapshot") || slice.contains(args, "-s")
-	test := slice.contains(args, "--test") || slice.contains(args, "-t")
+	test := slice.contains(args, "-test") || slice.contains(args, "-t")
+
 
 	if test {
 		// Vertices
@@ -118,6 +120,15 @@ main :: proc() {
 		defer destroy_mesh(&mesh)
 
 		iterations := 50
+		for arg, i in args {
+			if arg == "-iter" || arg == "-i" {
+				ok: bool
+				iterations, ok = strconv.parse_int(args[i + 1])
+				assert(ok, "Failed to parse number of iterations")
+				break
+			}
+		}
+
 		vertex_count := 1000
 		t := timer.Timer{}
 		timer.init(&t, vertex_count, iterations)
@@ -146,7 +157,7 @@ main :: proc() {
 			timer.start(&t, vertex_count)
 			update_triangulation(&mesh)
 			timer.stop(&t)
-			fmt.print(".")
+			fmt.print(".") // so we have something to watch
 		}
 		fmt.print("\n")
 		timer.print(&t)

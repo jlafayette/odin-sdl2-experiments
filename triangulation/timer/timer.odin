@@ -14,6 +14,7 @@ Timer :: struct {
 	vertex_count: int,
 	runs:         [dynamic]Run,
 }
+
 init :: proc(t: ^Timer, vertex_count: int, iterations: int = 100) {
 	reserve_dynamic_array(&t.runs, iterations)
 	t.vertex_count = vertex_count
@@ -39,5 +40,5 @@ print :: proc(t: ^Timer) {
 	}
 	average_duration := total / time.Duration(len(t.runs))
 	average_ms := f32(time.duration_milliseconds(average_duration))
-	fmt.printf("Average %.4f ms per run\n", average_ms)
+	fmt.printf("Average %.4f ms per run (%d total runs)\n", average_ms, len(t.runs))
 }
