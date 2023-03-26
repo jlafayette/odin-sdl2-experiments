@@ -13,6 +13,7 @@ import "vendor:sdl2"
 import gl "vendor:OpenGL"
 
 import "delaunay"
+import "timer"
 
 
 Vertex :: struct {
@@ -56,9 +57,6 @@ add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
 	update_triangulation(mesh)
 }
 random_vertices :: proc(mesh: ^Mesh, count: int = 1000) {
-	start_tick := time.tick_now()
-	inner_ms: f32
-
 	r := rand.Rand{}
 	mesh.seed += 1
 	rand.init(&r, mesh.seed)
@@ -69,25 +67,10 @@ random_vertices :: proc(mesh: ^Mesh, count: int = 1000) {
 			Vertex{{rand.float32(&r) * 2 - 1, rand.float32(&r) * 2 - 1, rand.float32(&r) * 2 - 1}},
 		)
 	}
-	duration := time.tick_since(start_tick)
-	t := f32(time.duration_milliseconds(duration))
-	fmt.printf("Generating %d random vertices took %.4f ms\n", count, t)
 
 	update_triangulation(mesh)
 }
 update_triangulation :: proc(mesh: ^Mesh) {
-	start_tick := time.tick_now()
-	inner_ms: f32
-	defer {
-		duration := time.tick_since(start_tick)
-		t := f32(time.duration_milliseconds(duration))
-		fmt.printf(
-			"Triangulation of %d vertices took %.4f ms (inner %.4f ms)\n",
-			len(mesh.vertices),
-			t,
-			inner_ms,
-		)
-	}
 	clear_dynamic_array(&mesh.point_indices)
 	for _, i in mesh.vertices {
 		append(&mesh.point_indices, u16(i))
@@ -102,10 +85,7 @@ update_triangulation :: proc(mesh: ^Mesh) {
 	i_triangles := make([dynamic]delaunay.I_Triangle, tri_cap, tri_cap)
 	defer delete(i_triangles)
 
-	inner_start_tick := time.tick_now()
 	point_slice, tri_slice := delaunay.triangulate(&points, &i_triangles)
-	inner_duration := time.tick_since(inner_start_tick)
-	inner_ms = f32(time.duration_milliseconds(inner_duration))
 
 	clear_dynamic_array(&mesh.indices)
 	nv := len(point_slice)
@@ -125,11 +105,11 @@ destroy_mesh :: proc(mesh: ^Mesh) {
 
 main :: proc() {
 
-
 	fmt.println(os.args)
-	// profile := slice.contains(os.args[1:], "--profile") || slice.contains(os.args[1:], "-p")
-	// snapshot := slice.contains(os.args[1:], "--snapshot") || slice.contains(os.args[1:], "-s")
-	test := slice.contains(os.args[1:], "--test") || slice.contains(os.args[1:], "-t")
+	args := os.args[1:]
+	// profile := slice.contains(args, "--profile") || slice.contains(args, "-p")
+	// snapshot := slice.contains(args, "--snapshot") || slice.contains(args, "-s")
+	test := slice.contains(args, "--test") || slice.contains(args, "-t")
 
 	if test {
 		// Vertices
@@ -137,10 +117,39 @@ main :: proc() {
 		init_mesh(&mesh)
 		defer destroy_mesh(&mesh)
 
-		iterations := 30
+		iterations := 50
+		vertex_count := 1000
+		t := timer.Timer{}
+		timer.init(&t, vertex_count, iterations)
+
 		for i := 0; i < iterations; i += 1 {
-			random_vertices(&mesh, 1000)
+
+			// copied from random_vertices but split appart so we aren't timing
+			// the random generation part
+			r := rand.Rand{}
+			mesh.seed += 1
+			rand.init(&r, mesh.seed)
+			clear_dynamic_array(&mesh.vertices)
+			for i := 0; i < vertex_count; i += 1 {
+				append(
+					&mesh.vertices,
+					Vertex{
+						{
+							rand.float32(&r) * 2 - 1,
+							rand.float32(&r) * 2 - 1,
+							rand.float32(&r) * 2 - 1,
+						},
+					},
+				)
+			}
+
+			timer.start(&t, vertex_count)
+			update_triangulation(&mesh)
+			timer.stop(&t)
+			fmt.print(".")
 		}
+		fmt.print("\n")
+		timer.print(&t)
 
 	} else {
 		track: mem.Tracking_Allocator
