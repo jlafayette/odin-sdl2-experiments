@@ -6,9 +6,10 @@ import "core:mem"
 import "core:slice"
 import "core:time"
 import "core:strings"
+import "core:math/rand"
+import "core:math/linalg/glsl"
 import "vendor:sdl2"
 import gl "vendor:OpenGL"
-import "core:math/linalg/glsl"
 
 import "delaunay"
 
@@ -22,6 +23,7 @@ Mesh :: struct {
 	indices:       [dynamic]u16,
 	point_indices: [dynamic]u16,
 	modified:      bool,
+	seed:          u64,
 }
 Buffers :: struct {
 	vao: u32,
@@ -29,7 +31,7 @@ Buffers :: struct {
 	ebo: u32,
 }
 
-MAX_VERTICES :: 256
+MAX_VERTICES :: 1200
 
 init_mesh :: proc(mesh: ^Mesh) {
 	reserve_dynamic_array(&mesh.vertices, MAX_VERTICES)
@@ -50,6 +52,23 @@ add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
 		return
 	}
 	append(&mesh.vertices, Vertex{{x, y, 0.0}})
+	update_triangulation(mesh)
+}
+random_vertices :: proc(mesh: ^Mesh, count: int = 1000) {
+	r := rand.Rand{}
+	mesh.seed += 1
+	rand.init(&r, mesh.seed)
+	clear_dynamic_array(&mesh.vertices)
+	for i := 0; i < count; i += 1 {
+		append(
+			&mesh.vertices,
+			Vertex{{rand.float32(&r) * 2 - 1, rand.float32(&r) * 2 - 1, rand.float32(&r) * 2 - 1}},
+		)
+	}
+
+	update_triangulation(mesh)
+}
+update_triangulation :: proc(mesh: ^Mesh) {
 	clear_dynamic_array(&mesh.point_indices)
 	for _, i in mesh.vertices {
 		append(&mesh.point_indices, u16(i))
@@ -180,6 +199,10 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			case .KEYUP:
 				if event.key.keysym.sym == .ESCAPE {
 					sdl2.PushEvent(&sdl2.Event{type = .QUIT})
+				}
+			case .KEYDOWN:
+				if event.key.keysym.sym == .R {
+					random_vertices(&mesh)
 				}
 			case .MOUSEBUTTONDOWN:
 				switch event.button.button {
