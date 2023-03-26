@@ -27,12 +27,6 @@ triangulate :: proc(
 	[]Point,
 	[]I_Triangle,
 ) {
-	start_tick := time.tick_now()
-	defer {
-		duration := time.tick_since(start_tick)
-		t := f32(time.duration_milliseconds(duration))
-		fmt.printf("delaunay.triangulate with %d vertices took %.4f ms\n", len(points_backing), t)
-	}
 	// subroutine triangulate
 	// input : vertex list
 	// output : triangle list
@@ -152,7 +146,8 @@ triangulate :: proc(
 		points_backing[i].y = p.y * largest_dimension + ymin
 	}
 
-	// end
+	// t := f32(time.duration_milliseconds(duration))
+	// fmt.printf("delaunay.triangulate with %d vertices took %.4f ms\n", len(points_backing), t)
 	return points_backing[:len(points_backing) - 3], triangles
 }
 

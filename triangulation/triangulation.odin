@@ -1,6 +1,7 @@
 package triangulation
 
 import "core:c"
+import "core:os"
 import "core:fmt"
 import "core:mem"
 import "core:slice"
@@ -55,6 +56,9 @@ add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
 	update_triangulation(mesh)
 }
 random_vertices :: proc(mesh: ^Mesh, count: int = 1000) {
+	start_tick := time.tick_now()
+	inner_ms: f32
+
 	r := rand.Rand{}
 	mesh.seed += 1
 	rand.init(&r, mesh.seed)
@@ -65,15 +69,24 @@ random_vertices :: proc(mesh: ^Mesh, count: int = 1000) {
 			Vertex{{rand.float32(&r) * 2 - 1, rand.float32(&r) * 2 - 1, rand.float32(&r) * 2 - 1}},
 		)
 	}
+	duration := time.tick_since(start_tick)
+	t := f32(time.duration_milliseconds(duration))
+	fmt.printf("Generating %d random vertices took %.4f ms\n", count, t)
 
 	update_triangulation(mesh)
 }
 update_triangulation :: proc(mesh: ^Mesh) {
 	start_tick := time.tick_now()
+	inner_ms: f32
 	defer {
 		duration := time.tick_since(start_tick)
 		t := f32(time.duration_milliseconds(duration))
-		fmt.printf("Triangulation of %d vertices took %.4f ms\n", len(mesh.vertices), t)
+		fmt.printf(
+			"Triangulation of %d vertices took %.4f ms (inner %.4f ms)\n",
+			len(mesh.vertices),
+			t,
+			inner_ms,
+		)
 	}
 	clear_dynamic_array(&mesh.point_indices)
 	for _, i in mesh.vertices {
@@ -89,7 +102,10 @@ update_triangulation :: proc(mesh: ^Mesh) {
 	i_triangles := make([dynamic]delaunay.I_Triangle, tri_cap, tri_cap)
 	defer delete(i_triangles)
 
+	inner_start_tick := time.tick_now()
 	point_slice, tri_slice := delaunay.triangulate(&points, &i_triangles)
+	inner_duration := time.tick_since(inner_start_tick)
+	inner_ms = f32(time.duration_milliseconds(inner_duration))
 
 	clear_dynamic_array(&mesh.indices)
 	nv := len(point_slice)
@@ -108,18 +124,40 @@ destroy_mesh :: proc(mesh: ^Mesh) {
 
 
 main :: proc() {
-	track: mem.Tracking_Allocator
-	mem.tracking_allocator_init(&track, context.allocator)
-	context.allocator = mem.tracking_allocator(&track)
 
-	_main()
 
-	for _, leak in track.allocation_map {
-		fmt.printf("%v leaked %v bytes\n", leak.location, leak.size)
+	fmt.println(os.args)
+	// profile := slice.contains(os.args[1:], "--profile") || slice.contains(os.args[1:], "-p")
+	// snapshot := slice.contains(os.args[1:], "--snapshot") || slice.contains(os.args[1:], "-s")
+	test := slice.contains(os.args[1:], "--test") || slice.contains(os.args[1:], "-t")
+
+	if test {
+		// Vertices
+		mesh := Mesh{}
+		init_mesh(&mesh)
+		defer destroy_mesh(&mesh)
+
+		iterations := 30
+		for i := 0; i < iterations; i += 1 {
+			random_vertices(&mesh, 1000)
+		}
+
+	} else {
+		track: mem.Tracking_Allocator
+		mem.tracking_allocator_init(&track, context.allocator)
+		context.allocator = mem.tracking_allocator(&track)
+
+		_main()
+
+		for _, leak in track.allocation_map {
+			fmt.printf("%v leaked %v bytes\n", leak.location, leak.size)
+		}
+		for bad_free in track.bad_free_array {
+			fmt.printf("%v allocation %p was freed badly\n", bad_free.location, bad_free.memory)
+		}
 	}
-	for bad_free in track.bad_free_array {
-		fmt.printf("%v allocation %p was freed badly\n", bad_free.location, bad_free.memory)
-	}
+
+
 }
 
 _main :: proc() {
@@ -175,12 +213,6 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	program2, program2_ok := gl.load_shaders_source(vertex_source, fragment_source2)
 	if !program2_ok do return
 	defer gl.DeleteProgram(program2)
-
-	// // Vertex Array Object
-	// vao: u32
-	// gl.GenVertexArrays(1, &vao)
-	// defer gl.DeleteVertexArrays(1, &vao)
-	// gl.BindVertexArray(vao)
 
 	// Vertices
 	mesh := Mesh{}
