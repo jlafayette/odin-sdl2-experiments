@@ -4,6 +4,7 @@ import "core:c"
 import "core:os"
 import "core:fmt"
 import "core:mem"
+import "core:path/filepath"
 import "core:slice"
 import "core:time"
 import "core:strings"
@@ -15,6 +16,7 @@ import gl "vendor:OpenGL"
 
 import "delaunay"
 import "timer"
+import "snapshot"
 
 
 Vertex :: struct {
@@ -105,20 +107,34 @@ destroy_mesh :: proc(mesh: ^Mesh) {
 
 
 main :: proc() {
-
 	fmt.println(os.args)
 	args := os.args[1:]
+
+	mem_check := slice.contains(args, "-mem-check") || slice.contains(args, "-m")
+	if mem_check {
+		track: mem.Tracking_Allocator
+		mem.tracking_allocator_init(&track, context.allocator)
+		context.allocator = mem.tracking_allocator(&track)
+
+		_main()
+
+		for _, leak in track.allocation_map {
+			fmt.printf("%v leaked %v bytes\n", leak.location, leak.size)
+		}
+		for bad_free in track.bad_free_array {
+			fmt.printf("%v allocation %p was freed badly\n", bad_free.location, bad_free.memory)
+		}
+	} else {
+		_main()
+	}
+}
+
+_main :: proc() {
+	args := os.args[1:]
 	// profile := slice.contains(args, "--profile") || slice.contains(args, "-p")
-	// snapshot := slice.contains(args, "--snapshot") || slice.contains(args, "-s")
 	test := slice.contains(args, "-test") || slice.contains(args, "-t")
 
-
 	if test {
-		// Vertices
-		mesh := Mesh{}
-		init_mesh(&mesh)
-		defer destroy_mesh(&mesh)
-
 		iterations := 50
 		for arg, i in args {
 			if arg == "-iter" || arg == "-i" {
@@ -129,14 +145,22 @@ main :: proc() {
 			}
 		}
 
+		save_snapshot := slice.contains(args, "-save-snapshot") || slice.contains(args, "-s")
+
+		// Vertices
+		mesh := Mesh{}
+		init_mesh(&mesh)
+		defer destroy_mesh(&mesh)
+
 		vertex_count := 1000
 		t := timer.Timer{}
 		timer.init(&t, vertex_count, iterations)
+		defer timer.destroy(&t)
 
 		for i := 0; i < iterations; i += 1 {
 
-			// copied from random_vertices but split appart so we aren't timing
-			// the random generation part
+			// copied from random_vertices procedure but split apart so we
+			// aren't timing the random generation part
 			r := rand.Rand{}
 			mesh.seed += 1
 			rand.init(&r, mesh.seed)
@@ -157,30 +181,41 @@ main :: proc() {
 			timer.start(&t, vertex_count)
 			update_triangulation(&mesh)
 			timer.stop(&t)
-			fmt.print(".") // so we have something to watch
+			fmt.print(".") // so we have something to indicate progress
+			if save_snapshot {
+
+				path := snapshot.path()
+				defer delete(path)
+				if err := snapshot.ensure_path_exists(path); err != os.ERROR_NONE {
+					fmt.eprintln("ERROR creating directory", path, err)
+					return
+				}
+				file := snapshot.file(path, vertex_count, i)
+				defer delete(file)
+
+				tris := make([dynamic]snapshot.I_Triangle, 0, len(mesh.indices) / 3)
+				defer delete(tris)
+				for i := 0; i < len(mesh.indices); i += 3 {
+					append(
+						&tris,
+						snapshot.I_Triangle{
+							cast(int)mesh.indices[i],
+							cast(int)mesh.indices[i + 1],
+							cast(int)mesh.indices[i + 2],
+						},
+					)
+				}
+				snapshot.write_triangles(file, tris[:])
+			}
 		}
 		fmt.print("\n")
 		timer.print(&t)
-
 	} else {
-		track: mem.Tracking_Allocator
-		mem.tracking_allocator_init(&track, context.allocator)
-		context.allocator = mem.tracking_allocator(&track)
-
-		_main()
-
-		for _, leak in track.allocation_map {
-			fmt.printf("%v leaked %v bytes\n", leak.location, leak.size)
-		}
-		for bad_free in track.bad_free_array {
-			fmt.printf("%v allocation %p was freed badly\n", bad_free.location, bad_free.memory)
-		}
+		_open_window_and_run()
 	}
-
-
 }
 
-_main :: proc() {
+_open_window_and_run :: proc() {
 	assert(sdl2.Init({.VIDEO}) == 0, sdl2.GetErrorString())
 	defer sdl2.Quit()
 

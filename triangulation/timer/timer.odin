@@ -20,6 +20,10 @@ init :: proc(t: ^Timer, vertex_count: int, iterations: int = 100) {
 	t.vertex_count = vertex_count
 }
 
+destroy :: proc(t: ^Timer) {
+	delete(t.runs)
+}
+
 start :: proc(t: ^Timer, vertex_count: int) {
 	assert(!t.running, "Timer is already running!")
 	t.running = true

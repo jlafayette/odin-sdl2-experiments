@@ -2,12 +2,40 @@ package snapshot
 
 import "core:fmt"
 import "core:os"
+import "core:path/filepath"
 import "core:strconv"
 import "core:strings"
 
 import "../delaunay"
 
 I_Triangle :: delaunay.I_Triangle
+
+
+path :: proc() -> string {
+	path := filepath.join({"triangulation", "saved_snapshots"})
+	return path
+}
+
+
+ensure_path_exists :: proc(path: string) -> (error: os.Errno) {
+	if !os.exists(path) {
+		err := os.make_directory(path)
+		return err
+	}
+	return os.ERROR_NONE
+}
+
+
+file :: proc(path: string, vertex_count, iteration: int) -> string {
+	b := strings.Builder{}
+	defer strings.builder_destroy(&b)
+	strings.builder_init_len_cap(&b, 0, 16)
+	fmt.sbprintf(&b, "snapshot_%d_", vertex_count)
+	if iteration <= 9 do fmt.sbprint(&b, "0")
+	fmt.sbprintf(&b, "%d", iteration)
+	file := filepath.join({path, strings.to_string(b)})
+	return file
+}
 
 
 write_triangles :: proc(path: string, tris: []I_Triangle) -> bool {
