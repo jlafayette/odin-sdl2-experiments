@@ -1,6 +1,7 @@
 package timer
 
 import "core:fmt"
+import "core:strings"
 import "core:time"
 
 @(private)
@@ -36,13 +37,29 @@ stop :: proc(t: ^Timer) {
 }
 
 print :: proc(t: ^Timer) {
+	b := report(t)
+	defer strings.builder_destroy(&b)
+	fmt.print(strings.to_string(b))
+}
+
+report :: proc(t: ^Timer, verbose: bool = true) -> strings.Builder {
+	b := strings.Builder{}
+	strings.builder_init_len_cap(&b, 0, estimated_report_len(t))
 	total: time.Duration = 0
 	for run in t.runs {
 		total += run.duration
-		ms_elapsed := f32(time.duration_milliseconds(run.duration))
-		fmt.printf("Triangulation of %d vertices took %.4f ms\n", t.vertex_count, ms_elapsed)
+		if verbose {
+			ms_elapsed := f32(time.duration_milliseconds(run.duration))
+			fmt.sbprintf(&b, "Triangulation of %d vertices took %.4f ms\n", t.vertex_count, ms_elapsed)
+		}
 	}
 	average_duration := total / time.Duration(len(t.runs))
 	average_ms := f32(time.duration_milliseconds(average_duration))
-	fmt.printf("Average %.4f ms per run (%d total runs)\n", average_ms, len(t.runs))
+	fmt.sbprintf(&b, "Average %.4f ms per run (%d total runs)\n", average_ms, len(t.runs))
+	return b
+}
+
+@(private)
+estimated_report_len :: proc(t: ^Timer) -> int {
+	return (len(t.runs) + 1) * 50
 }

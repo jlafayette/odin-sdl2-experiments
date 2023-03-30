@@ -17,6 +17,7 @@ import gl "vendor:OpenGL"
 import "delaunay"
 import "timer"
 import "snapshot"
+import "benchmark"
 
 
 Vertex :: struct {
@@ -147,6 +148,8 @@ _main :: proc() {
 
 		save_snapshot := slice.contains(args, "-save-snapshot") || slice.contains(args, "-s")
 
+		save_benchmark := slice.contains(args, "-save-benchmark") || slice.contains(args, "-b")
+
 		// Vertices
 		mesh := Mesh{}
 		init_mesh(&mesh)
@@ -210,6 +213,11 @@ _main :: proc() {
 		}
 		fmt.print("\n")
 		timer.print(&t)
+
+		// Write report for run
+		if save_benchmark {
+			benchmark.write_report(&t)
+		}
 	} else {
 		_open_window_and_run()
 	}
