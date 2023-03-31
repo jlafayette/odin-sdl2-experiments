@@ -216,7 +216,8 @@ _main :: proc() {
 
 		// Write report for run
 		if save_benchmark {
-			benchmark.write_report(&t)
+			ok := benchmark.write_report(&t)
+			fmt.println("write ok:", ok)
 		}
 	} else {
 		_open_window_and_run()
