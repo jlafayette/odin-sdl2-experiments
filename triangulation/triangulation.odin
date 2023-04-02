@@ -108,9 +108,7 @@ destroy_mesh :: proc(mesh: ^Mesh) {
 
 
 main :: proc() {
-	fmt.println(os.args)
 	args := os.args[1:]
-
 	mem_check := slice.contains(args, "-mem-check") || slice.contains(args, "-m")
 	if mem_check {
 		track: mem.Tracking_Allocator
@@ -146,7 +144,14 @@ _main :: proc() {
 			}
 		}
 
-		save_snapshot := slice.contains(args, "-save-snapshot") || slice.contains(args, "-s")
+		save_snapshot := slice.contains(args, "-save-snapshot") || slice.contains(args, "-ss")
+		check_snapshot := slice.contains(args, "-check-snapshot") || slice.contains(args, "-cs")
+		if save_snapshot && check_snapshot {
+			fmt.eprintln(
+				"ERROR: cannot enable options to save and check snapshots in the same run",
+			)
+			return
+		}
 
 		save_benchmark := slice.contains(args, "-save-benchmark") || slice.contains(args, "-b")
 
@@ -165,7 +170,7 @@ _main :: proc() {
 			// copied from random_vertices procedure but split apart so we
 			// aren't timing the random generation part
 			r := rand.Rand{}
-			mesh.seed += 1
+			mesh.seed = cast(u64)i
 			rand.init(&r, mesh.seed)
 			clear_dynamic_array(&mesh.vertices)
 			for i := 0; i < vertex_count; i += 1 {
@@ -209,6 +214,39 @@ _main :: proc() {
 					)
 				}
 				snapshot.write_triangles(file, tris[:])
+			}
+			if check_snapshot {
+				path := snapshot.path()
+				defer delete(path)
+				file := snapshot.file(path, vertex_count, i)
+				defer delete(file)
+				tris, ok := snapshot.read_triangles(file)
+				if !ok {
+					fmt.eprintf(
+						"ERROR: snapshot file not found %s, try saving snapshots with -ss first",
+						file,
+					)
+					return
+				}
+				defer delete(tris)
+				for j := 0; j < len(tris); j += 1 {
+					tri := tris[j]
+					i0 := cast(int)mesh.indices[j * 3]
+					i1 := cast(int)mesh.indices[j * 3 + 1]
+					i2 := cast(int)mesh.indices[j * 3 + 2]
+					if i0 != tri[0] || i1 != tri[1] || i2 != tri[2] {
+						fmt.eprintf(
+							"ERROR: tri[%d] (%v) does not match mesh indices [%d, %d, %d]",
+							j,
+							tri,
+							i0,
+							i1,
+							i2,
+						)
+						return
+					}
+
+				}
 			}
 		}
 		fmt.print("\n")
