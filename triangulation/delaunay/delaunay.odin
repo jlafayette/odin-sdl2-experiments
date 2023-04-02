@@ -1,3 +1,17 @@
+/*
+Resources and inspiration:
+
+	Efficient Triangulation Algorithm Suitable for Terrain Modelling
+	http://paulbourke.net/papers/triangulate/
+
+	C++ implementation by Jean Bégaint
+	https://github.com/jbegaint/delaunay-cpp
+
+	xmdi Planar Delaunay Triangulations | CAD from Scratch [16]
+	https://www.youtube.com/watch?v=pPqZPX9DvTg&t=1056s&ab_channel=xmdi
+	https://github.com/xmdi/CAD-from-Scratch/blob/main/016/geom.c#L929
+
+*/
 package delaunay_triangulation
 
 import "core:fmt"
