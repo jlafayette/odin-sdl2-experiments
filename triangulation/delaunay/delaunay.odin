@@ -41,10 +41,6 @@ triangulate :: proc(
 	[]Point,
 	[]I_Triangle,
 ) {
-	// subroutine triangulate
-	// input : vertex list
-	// output : triangle list
-
 	// initialize the triangle list
 	clear_dynamic_array(triangles_backing)
 
@@ -80,17 +76,20 @@ triangulate :: proc(
 	triangles := triangles_backing[:]
 	points = points_backing[:]
 
+	// initialize buffers needed for main loop
+	edges_backing := make([dynamic]I_Edge, 0, 200)
+	defer delete(edges_backing)
+	to_delete := make([dynamic]int, 0, 16)
+	defer delete(to_delete)
+
 	// for each sample point in the vertex list
 	for i := 0; i < len(points) - 3; i += 1 {
 		point := points[i]
 
-		// 	initialize the edge buffer
-		edges_backing := make([dynamic]I_Edge, 0, 200)
-		defer delete(edges_backing)
+		clear_dynamic_array(&edges_backing)
+		clear_dynamic_array(&to_delete)
 
 		// 	for each triangle currently in the triangle list
-		to_delete := make([dynamic]int, 0, 16)
-		defer delete(to_delete)
 		for tri_i := 0; tri_i < len(triangles); tri_i += 1 {
 			tri := triangles[tri_i]
 			// calculate the triangle circumcircle center and radius
@@ -109,35 +108,18 @@ triangulate :: proc(
 				tri_i -= 1
 			} // endif
 		} // endfor
-		// 	delete all doubly specified edges from the edge buffer
-		// 		this leaves the edges of the enclosing polygon only
+
+		// Remove doubled up edges, leaving only the edges of the
+		// enclosing polygon
 		edges := edges_backing[:]
-		remove_duplicates(&edges)
+		mark_duplicates(edges, &to_delete)
+		slice.sort(to_delete[:])
+		for di := len(to_delete) - 1; di >= 0; di -= 1 {
+			remove_item(&edges, to_delete[di])
+		}
 
 		// Add to the triangle list all triangles formed between the point 
 		// and the edges of the enclosing polygon
-		for j := 0; j < len(edges); j += 1 {
-			enclosing_polygon := false
-			for tri in triangles {
-				if tri_includes_edge(edges[j], tri) {
-					enclosing_polygon = true
-					break
-				}
-			}
-			// Need to track the edges of the mesh, so that edges that border on
-			// was was previously the border before that triangle was deleted
-			// are preserved and have a triangle added from them to the current
-			// point
-			if tri_includes_edge(edges[j], super_tri) {
-				enclosing_polygon = true
-			}
-
-			// Remove edges that are interior to the enclosing polygon
-			if !enclosing_polygon && len(triangles) > 0 {
-				remove_item(&edges, j)
-				j -= 1
-			}
-		}
 		for edge in edges {
 			add_item(&triangles, triangles_backing, I_Triangle{i, edge.x, edge.y})
 		}
@@ -160,8 +142,6 @@ triangulate :: proc(
 		points_backing[i].y = p.y * largest_dimension + ymin
 	}
 
-	// t := f32(time.duration_milliseconds(duration))
-	// fmt.printf("delaunay.triangulate with %d vertices took %.4f ms\n", len(points_backing), t)
 	return points_backing[:len(points_backing) - 3], triangles
 }
 
@@ -180,6 +160,16 @@ tri_includes_edge :: proc(edge: I_Edge, tri: I_Triangle) -> bool {
 
 edges_equal :: proc "contextless" (e1, e2: I_Edge) -> bool {
 	return e1.xy == e2.xy || e1.xy == e2.yx
+}
+mark_duplicates :: proc(s: []I_Edge, marked: ^[dynamic]int) {
+	for i := 0; i < len(s); i += 1 {
+		for j := i + 1; j < len(s); j += 1 {
+			if #force_inline edges_equal(s[i], s[j]) {
+				append(marked, i, j)
+				break
+			}
+		}
+	}
 }
 remove_duplicates :: proc(s: ^[]I_Edge) {
 	for i := 0; i < len(s); i += 1 {
