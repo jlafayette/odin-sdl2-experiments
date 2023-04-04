@@ -115,26 +115,18 @@ triangulate :: proc(
 			} // endif
 		} // endfor
 
+		// Remove doubled up edges, leaving only the edges of the
+		// enclosing polygon
 		edges := edges_backing[:]
-		{
-			tracy.ZoneN("remove duplicates")
-			// Remove doubled up edges, leaving only the edges of the
-			// enclosing polygon
-			// edges := edges_backing[:]
-			mark_duplicates(edges, &to_delete)
-			slice.sort(to_delete[:])
-			for di := len(to_delete) - 1; di >= 0; di -= 1 {
-				remove_item(&edges, to_delete[di])
-			}
+		mark_duplicates(edges, &to_delete)
+		slice.sort(to_delete[:])
+		for di := len(to_delete) - 1; di >= 0; di -= 1 {
+			remove_item(&edges, to_delete[di])
 		}
-
-		{
-			tracy.ZoneN("add tris")
-			// Add to the triangle list all triangles formed between the point 
-			// and the edges of the enclosing polygon
-			for edge in edges {
-				add_item(&triangles, triangles_backing, I_Triangle{i, edge.x, edge.y})
-			}
+		// Add to the triangle list all triangles formed between the point 
+		// and the edges of the enclosing polygon
+		for edge in edges {
+			add_item(&triangles, triangles_backing, I_Triangle{i, edge.x, edge.y})
 		}
 
 	} // endfor
@@ -175,7 +167,6 @@ edges_equal :: proc "contextless" (e1, e2: I_Edge) -> bool {
 	return e1.xy == e2.xy || e1.xy == e2.yx
 }
 mark_duplicates :: proc(s: []I_Edge, marked: ^[dynamic]int) {
-	// tracy.ZoneN("mark_duplicates")
 	for i := 0; i < len(s); i += 1 {
 		for j := i + 1; j < len(s); j += 1 {
 			if #force_inline edges_equal(s[i], s[j]) {
@@ -196,7 +187,6 @@ remove_duplicates :: proc(s: ^[]I_Edge) {
 	}
 }
 remove_item :: proc(s: ^[]$T, i: int) {
-	// tracy.ZoneN("remove_item")
 	x := len(s) - 1
 	if i != x {
 		slice.swap(s^, i, x)
@@ -204,7 +194,6 @@ remove_item :: proc(s: ^[]$T, i: int) {
 	s^ = s[:len(s) - 1]
 }
 add_item :: proc(s: ^[]$T, backing: ^[dynamic]T, v: T) {
-	// tracy.ZoneN("add_item")
 	if len(backing) == len(s) {
 		append(backing, v)
 		s^ = backing[:]
@@ -216,7 +205,6 @@ add_item :: proc(s: ^[]$T, backing: ^[dynamic]T, v: T) {
 
 
 inside_circle :: proc(p: Point, circle: Circle) -> bool {
-	// tracy.ZoneN("inside_circle")
 	dx := circle.center.x - p.x
 	dy := circle.center.y - p.y
 	dist := dx * dx + dy * dy
@@ -224,7 +212,6 @@ inside_circle :: proc(p: Point, circle: Circle) -> bool {
 }
 
 circum_circle :: proc(p1, p2, p3: Point) -> Circle {
-	// tracy.ZoneN("circum_circle")
 	ax := p2.x - p1.x
 	ay := p2.y - p1.y
 	bx := p3.x - p1.x
