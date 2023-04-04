@@ -3,6 +3,7 @@ package snapshot
 import "core:fmt"
 import "core:os"
 import "core:path/filepath"
+import "core:slice"
 import "core:strconv"
 import "core:strings"
 
@@ -10,6 +11,37 @@ import "../delaunay"
 
 I_Triangle :: delaunay.I_Triangle
 
+
+// Compare two slices of triangles to see if they are equal
+// Order does not matter (both slices are sorted before comparison)
+compare :: proc(t1, t2: []I_Triangle) -> (success: bool) {
+	if len(t1) != len(t2) {
+		fmt.eprintf("ERROR: trangle slices are of unequal length (%d vs %d)\n", len(t1), len(t2))
+		return false
+	}
+	// currently this procedure mutates the input values, could change
+	// this to make copies intead if this causes problems
+	less :: proc(i, j: I_Triangle) -> bool {
+		if i.x != j.x {
+			return i.x < j.x
+		}
+		if i.y != j.y {
+			return i.y < j.y
+		}
+		return i.z < j.z
+	}
+	slice.sort_by(t1, less)
+	slice.sort_by(t2, less)
+
+	for i := 0; i < len(t1); i += 1 {
+		if t1[i] != t2[i] {
+			fmt.eprintf("ERROR: Tris at index %d are not equal (%v != %v)\n", i, t1[i], t2[i])
+			return false
+		}
+	}
+
+	return true
+}
 
 path :: proc() -> string {
 	path := filepath.join({"triangulation", "saved_snapshots"})

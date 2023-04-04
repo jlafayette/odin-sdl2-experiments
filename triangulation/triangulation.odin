@@ -243,23 +243,18 @@ _main :: proc() {
 					return
 				}
 				defer delete(tris)
-				for j := 0; j < len(tris); j += 1 {
-					tri := tris[j]
-					i0 := cast(int)mesh.indices[j * 3]
-					i1 := cast(int)mesh.indices[j * 3 + 1]
-					i2 := cast(int)mesh.indices[j * 3 + 2]
-					if i0 != tri[0] || i1 != tri[1] || i2 != tri[2] {
-						fmt.eprintf(
-							"ERROR: tri[%d] (%v) does not match mesh indices [%d, %d, %d]",
-							j,
-							tri,
-							i0,
-							i1,
-							i2,
-						)
-						return
-					}
-
+				actual_tris := make([dynamic]snapshot.I_Triangle, 0, len(mesh.indices) * 3)
+				for j := 0; j < len(mesh.indices); j += 3 {
+					i0 := cast(int)mesh.indices[j]
+					i1 := cast(int)mesh.indices[j + 1]
+					i2 := cast(int)mesh.indices[j + 2]
+					tri := snapshot.I_Triangle{i0, i1, i2}
+					append(&actual_tris, tri)
+				}
+				success := snapshot.compare(actual_tris[:], tris[:])
+				if !success {
+					fmt.eprintln("ERROR: results did not match saved snapshot")
+					return
 				}
 			}
 		}
