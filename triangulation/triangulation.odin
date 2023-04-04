@@ -1,4 +1,5 @@
 package triangulation
+TRACY_ENABLE :: #config(TRACY_ENABLE, false)
 
 import "core:c"
 import "core:os"
@@ -14,6 +15,7 @@ import "core:math/linalg/glsl"
 import "vendor:sdl2"
 import gl "vendor:OpenGL"
 
+import tracy "../../../odin-tracy"
 import "delaunay"
 import "timer"
 import "snapshot"
@@ -129,6 +131,17 @@ main :: proc() {
 }
 
 _main :: proc() {
+	tracy.SetThreadName("main")
+	context.allocator = tracy.MakeProfiledAllocator(
+		self = &tracy.ProfiledAllocatorData{},
+		callstack_size = 20,
+		backing_allocator = context.allocator,
+		secure = true,
+	)
+	when TRACY_ENABLE {
+		fmt.println("tracy is enabled!")
+	}
+
 	args := os.args[1:]
 	// profile := slice.contains(args, "--profile") || slice.contains(args, "-p")
 	test := slice.contains(args, "-test") || slice.contains(args, "-t")
@@ -166,6 +179,7 @@ _main :: proc() {
 		defer timer.destroy(&t)
 
 		for i := 0; i < iterations; i += 1 {
+			defer tracy.FrameMark()
 
 			// copied from random_vertices procedure but split apart so we
 			// aren't timing the random generation part
@@ -328,6 +342,8 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 
 	start_tick := time.tick_now()
 	game_loop: for {
+		defer tracy.FrameMark()
+
 		duration := time.tick_since(start_tick)
 		t := f32(time.duration_seconds(duration))
 

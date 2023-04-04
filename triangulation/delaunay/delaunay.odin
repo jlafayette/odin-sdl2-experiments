@@ -14,12 +14,15 @@ Resources and inspiration:
 */
 package delaunay_triangulation
 
+TRACY_ENABLE :: #config(TRACY_ENABLE, false)
+
 import "core:fmt"
 import "core:math"
 import "core:slice"
 import "core:time"
 import "core:container/queue"
 import "core:math/linalg/glsl"
+import tracy "../../../../odin-tracy"
 
 I_Verts :: distinct [3]int
 I_Triangle :: distinct [3]int
@@ -41,6 +44,7 @@ triangulate :: proc(
 	[]Point,
 	[]I_Triangle,
 ) {
+	tracy.ZoneN("triangulate")
 	// initialize the triangle list
 	clear_dynamic_array(triangles_backing)
 
@@ -84,6 +88,7 @@ triangulate :: proc(
 
 	// for each sample point in the vertex list
 	for i := 0; i < len(points) - 3; i += 1 {
+		tracy.ZoneN("1 point loop")
 		point := points[i]
 
 		clear_dynamic_array(&edges_backing)
@@ -91,6 +96,7 @@ triangulate :: proc(
 
 		// 	for each triangle currently in the triangle list
 		for tri_i := 0; tri_i < len(triangles); tri_i += 1 {
+			tracy.ZoneN("2 tri loop")
 			tri := triangles[tri_i]
 			// calculate the triangle circumcircle center and radius
 			circle := circum_circle(points[tri.x], points[tri.y], points[tri.z])
@@ -109,19 +115,26 @@ triangulate :: proc(
 			} // endif
 		} // endfor
 
-		// Remove doubled up edges, leaving only the edges of the
-		// enclosing polygon
 		edges := edges_backing[:]
-		mark_duplicates(edges, &to_delete)
-		slice.sort(to_delete[:])
-		for di := len(to_delete) - 1; di >= 0; di -= 1 {
-			remove_item(&edges, to_delete[di])
+		{
+			tracy.ZoneN("remove duplicates")
+			// Remove doubled up edges, leaving only the edges of the
+			// enclosing polygon
+			// edges := edges_backing[:]
+			mark_duplicates(edges, &to_delete)
+			slice.sort(to_delete[:])
+			for di := len(to_delete) - 1; di >= 0; di -= 1 {
+				remove_item(&edges, to_delete[di])
+			}
 		}
 
-		// Add to the triangle list all triangles formed between the point 
-		// and the edges of the enclosing polygon
-		for edge in edges {
-			add_item(&triangles, triangles_backing, I_Triangle{i, edge.x, edge.y})
+		{
+			tracy.ZoneN("add tris")
+			// Add to the triangle list all triangles formed between the point 
+			// and the edges of the enclosing polygon
+			for edge in edges {
+				add_item(&triangles, triangles_backing, I_Triangle{i, edge.x, edge.y})
+			}
 		}
 
 	} // endfor
@@ -162,6 +175,7 @@ edges_equal :: proc "contextless" (e1, e2: I_Edge) -> bool {
 	return e1.xy == e2.xy || e1.xy == e2.yx
 }
 mark_duplicates :: proc(s: []I_Edge, marked: ^[dynamic]int) {
+	// tracy.ZoneN("mark_duplicates")
 	for i := 0; i < len(s); i += 1 {
 		for j := i + 1; j < len(s); j += 1 {
 			if #force_inline edges_equal(s[i], s[j]) {
@@ -182,6 +196,7 @@ remove_duplicates :: proc(s: ^[]I_Edge) {
 	}
 }
 remove_item :: proc(s: ^[]$T, i: int) {
+	// tracy.ZoneN("remove_item")
 	x := len(s) - 1
 	if i != x {
 		slice.swap(s^, i, x)
@@ -189,6 +204,7 @@ remove_item :: proc(s: ^[]$T, i: int) {
 	s^ = s[:len(s) - 1]
 }
 add_item :: proc(s: ^[]$T, backing: ^[dynamic]T, v: T) {
+	// tracy.ZoneN("add_item")
 	if len(backing) == len(s) {
 		append(backing, v)
 		s^ = backing[:]
@@ -199,14 +215,16 @@ add_item :: proc(s: ^[]$T, backing: ^[dynamic]T, v: T) {
 }
 
 
-inside_circle :: proc "contextless" (p: Point, circle: Circle) -> bool {
+inside_circle :: proc(p: Point, circle: Circle) -> bool {
+	// tracy.ZoneN("inside_circle")
 	dx := circle.center.x - p.x
 	dy := circle.center.y - p.y
 	dist := dx * dx + dy * dy
 	return dist <= circle.radius
 }
 
-circum_circle :: proc "contextless" (p1, p2, p3: Point) -> Circle {
+circum_circle :: proc(p1, p2, p3: Point) -> Circle {
+	// tracy.ZoneN("circum_circle")
 	ax := p2.x - p1.x
 	ay := p2.y - p1.y
 	bx := p3.x - p1.x
