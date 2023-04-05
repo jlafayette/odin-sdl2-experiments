@@ -47,19 +47,11 @@ Circle :: struct {
 }
 
 
-triangulate :: proc(
-	points_backing: ^[dynamic]Point,
-	triangles_backing: ^[dynamic]I_Triangle,
-) -> (
-	[]Point,
-	[]I_Triangle,
-) {
+triangulate :: proc(points_backing: ^[dynamic]Point) -> ([]Point, []I_Triangle) {
 	tracy.ZoneN("triangulate")
-	// initialize the triangle list
-	clear_dynamic_array(triangles_backing)
 
-	// Store Triangle indices and circumcircle so it doesn't have
-	// to be recomputed
+	// Initialize the triangle list. Store circumcircle so it doesn't
+	// have to be recomputed
 	tris_backing := make([dynamic]Tri, 0, len(points_backing) * 2)
 	defer delete(tris_backing)
 
@@ -166,11 +158,13 @@ triangulate :: proc(
 		points_backing[i].x = p.x * largest_dimension + xmin
 		points_backing[i].y = p.y * largest_dimension + ymin
 	}
+
+	result_tris := make([dynamic]I_Triangle, 0, len(triangles))
 	for tri in triangles {
-		append(triangles_backing, tri.i)
+		append(&result_tris, tri.i)
 	}
 
-	return points_backing[:len(points_backing) - 3], triangles_backing[:]}
+	return points_backing[:len(points_backing) - 3], result_tris[:]}
 
 
 tri_includes_edge :: proc(edge: I_Edge, tri: I_Triangle) -> bool {

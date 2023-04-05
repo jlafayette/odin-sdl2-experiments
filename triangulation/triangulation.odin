@@ -87,11 +87,9 @@ update_triangulation :: proc(mesh: ^Mesh) {
 	for vertex in mesh.vertices {
 		append(&points, delaunay.Point(vertex.pos.xy))
 	}
-	tri_cap := len(mesh.vertices) * 3
-	i_triangles := make([dynamic]delaunay.I_Triangle, tri_cap, tri_cap)
-	defer delete(i_triangles)
 
-	point_slice, tri_slice := delaunay.triangulate(&points, &i_triangles)
+	point_slice, tri_slice := delaunay.triangulate(&points)
+	defer delete(tri_slice)
 
 	clear_dynamic_array(&mesh.indices)
 	nv := len(point_slice)
