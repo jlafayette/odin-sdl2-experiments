@@ -31,6 +31,16 @@ Point :: distinct glsl.vec2
 
 EPSILON :: 1e-4
 
+Tri :: struct {
+	i:      I_Triangle,
+	circle: Circle,
+}
+create_tri :: proc(i1, i2, i3: int, p1, p2, p3: Point) -> Tri {
+	circle := circum_circle(p1, p2, p3)
+	tri := Tri{{i1, i2, i3}, circle}
+	return tri
+}
+
 Circle :: struct {
 	center: Point,
 	radius: f32,
@@ -47,6 +57,11 @@ triangulate :: proc(
 	tracy.ZoneN("triangulate")
 	// initialize the triangle list
 	clear_dynamic_array(triangles_backing)
+
+	// Store Triangle indices and circumcircle so it doesn't have
+	// to be recomputed
+	tris_backing := make([dynamic]Tri, 0, len(points_backing) * 2)
+	defer delete(tris_backing)
 
 	// remap point cloud to 0-1 space
 	// find min and max boundries of the point cloud
@@ -75,10 +90,13 @@ triangulate :: proc(
 	points := points_backing[:]
 
 	// add the supertriangle to the triangle list
-	super_tri := I_Triangle{len(points) - 3, len(points) - 2, len(points) - 1}
-	append(triangles_backing, super_tri)
-	triangles := triangles_backing[:]
+	i1 := len(points) - 3
+	i2 := len(points) - 2
+	i3 := len(points) - 1
+	super_tri := create_tri(i1, i2, i3, points[i1], points[i2], points[i3])
+	append(&tris_backing, super_tri)
 	points = points_backing[:]
+	triangles := tris_backing[:]
 
 	// initialize buffers needed for main loop
 	edges_backing := make([dynamic]I_Edge, 0, 200)
@@ -98,16 +116,14 @@ triangulate :: proc(
 		for tri_i := 0; tri_i < len(triangles); tri_i += 1 {
 			tracy.ZoneN("2 tri loop")
 			tri := triangles[tri_i]
-			// calculate the triangle circumcircle center and radius
-			circle := circum_circle(points[tri.x], points[tri.y], points[tri.z])
-			// 		if the point lies in the triangle circumcircle then
-			if inside_circle(point, circle) {
+			// if the point lies in the triangle circumcircle then
+			if inside_circle(point, tri.circle) {
 				// add the three triangle edges to the edge buffer
 				append(
 					&edges_backing,
-					I_Edge{tri.x, tri.y},
-					I_Edge{tri.y, tri.z},
-					I_Edge{tri.x, tri.z},
+					I_Edge{tri.i.x, tri.i.y},
+					I_Edge{tri.i.y, tri.i.z},
+					I_Edge{tri.i.x, tri.i.z},
 				)
 				// remove the triangle from the triangle list
 				remove_item(&triangles, tri_i)
@@ -126,7 +142,11 @@ triangulate :: proc(
 		// Add to the triangle list all triangles formed between the point 
 		// and the edges of the enclosing polygon
 		for edge in edges {
-			add_item(&triangles, triangles_backing, I_Triangle{i, edge.x, edge.y})
+			add_item(
+				&triangles,
+				&tris_backing,
+				create_tri(i, edge.x, edge.y, points[i], points[edge.x], points[edge.y]),
+			)
 		}
 
 	} // endfor
@@ -135,7 +155,7 @@ triangulate :: proc(
 	nv := len(points_backing) - 3
 	for i := 0; i < len(triangles); i += 1 {
 		tri := triangles[i]
-		if tri.x >= nv || tri.y >= nv || tri.z >= nv {
+		if tri.i.x >= nv || tri.i.y >= nv || tri.i.z >= nv {
 			remove_item(&triangles, i)
 			i -= 1
 		}
@@ -146,9 +166,11 @@ triangulate :: proc(
 		points_backing[i].x = p.x * largest_dimension + xmin
 		points_backing[i].y = p.y * largest_dimension + ymin
 	}
+	for tri in triangles {
+		append(triangles_backing, tri.i)
+	}
 
-	return points_backing[:len(points_backing) - 3], triangles
-}
+	return points_backing[:len(points_backing) - 3], triangles_backing[:]}
 
 
 tri_includes_edge :: proc(edge: I_Edge, tri: I_Triangle) -> bool {
