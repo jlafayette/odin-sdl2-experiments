@@ -14,7 +14,7 @@ Resources and inspiration:
 */
 package delaunay_triangulation
 
-TRACY_ENABLE :: #config(TRACY_ENABLE, false)
+// TRACY_ENABLE :: #config(TRACY_ENABLE, false)
 
 import "core:fmt"
 import "core:math"
@@ -22,7 +22,7 @@ import "core:slice"
 import "core:time"
 import "core:container/queue"
 import "core:math/linalg/glsl"
-import tracy "../../../../odin-tracy"
+// import tracy "../../../../odin-tracy"
 
 I_Verts :: distinct [3]int
 I_Triangle :: distinct [3]int
@@ -52,7 +52,7 @@ Circle :: struct {
 
 
 triangulate :: proc(points_backing: ^[dynamic]Point) -> ([]Point, []I_Triangle) {
-	tracy.ZoneN("triangulate")
+	// tracy.ZoneN("triangulate")
 
 	// Initialize the triangle list. Store circumcircle so it doesn't
 	// have to be recomputed
@@ -132,7 +132,7 @@ triangulate :: proc(points_backing: ^[dynamic]Point) -> ([]Point, []I_Triangle) 
 			*/
 
 			// if the point lies in the triangle circumcircle then
-			if inside_circle(point, triangles[tri_i].circle) {
+			if #force_inline inside_circle(point, triangles[tri_i].circle) {
 				// add the three triangle edges to the edge buffer
 				append(
 					&edges_backing,
@@ -141,7 +141,7 @@ triangulate :: proc(points_backing: ^[dynamic]Point) -> ([]Point, []I_Triangle) 
 					I_Edge{triangles[tri_i].i.x, triangles[tri_i].i.z},
 				)
 				// remove the triangle from the triangle list
-				remove_item(&triangles, tri_i)
+				#force_inline remove_item(&triangles, tri_i)
 				tri_i -= 1
 			} // endif
 		} // endfor
@@ -227,7 +227,8 @@ remove_duplicates :: proc(s: ^[]I_Edge) {
 remove_item :: proc(s: ^[]$T, i: int) {
 	x := len(s) - 1
 	if i != x {
-		slice.swap(s^, i, x)
+		// s[i], s[x] = s[x], s[i]
+		#force_inline slice.swap(s^, i, x)
 	}
 	s^ = s[:len(s) - 1]
 }
