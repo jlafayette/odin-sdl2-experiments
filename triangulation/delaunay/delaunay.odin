@@ -64,7 +64,6 @@ triangulate :: proc(points_backing: ^[dynamic]Point) -> ([]Point, []I_Triangle) 
 	// TODO: figure out why this breaks everything
 	// slice.sort_by(points_backing[:], point_less)
 
-	/*
 	// remap point cloud to 0-1 space
 	// find min and max boundries of the point cloud
 	xmin: f32 = 0
@@ -85,7 +84,6 @@ triangulate :: proc(points_backing: ^[dynamic]Point) -> ([]Point, []I_Triangle) 
 		points_backing[i].x = (p.x - xmin) / largest_dimension
 		points_backing[i].y = (p.y - ymin) / largest_dimension
 	}
-	*/
 
 	// determine the supertriangle
 	// add supertriangle around our points vertices to the end of the vertex list
@@ -177,13 +175,11 @@ triangulate :: proc(points_backing: ^[dynamic]Point) -> ([]Point, []I_Triangle) 
 		}
 	}
 
-	/*
 	// undo the 0-1 mapping
 	for p, i in points_backing {
 		points_backing[i].x = p.x * largest_dimension + xmin
 		points_backing[i].y = p.y * largest_dimension + ymin
 	}
-	*/
 
 	result_tris := make([dynamic]I_Triangle, 0, len(triangles))
 	for tri in triangles {
