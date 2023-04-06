@@ -28,16 +28,20 @@ I_Verts :: distinct [3]int
 I_Triangle :: distinct [3]int
 I_Edge :: distinct [2]int
 Point :: distinct glsl.vec2
+point_less :: proc(p1, p2: Point) -> bool {
+	return p1.x < p2.x
+}
 
 EPSILON :: 1e-4
 
 Tri :: struct {
 	i:      I_Triangle,
 	circle: Circle,
+	active: bool,
 }
 create_tri :: proc(i1, i2, i3: int, p1, p2, p3: Point) -> Tri {
 	circle := circum_circle(p1, p2, p3)
-	tri := Tri{{i1, i2, i3}, circle}
+	tri := Tri{{i1, i2, i3}, circle, true}
 	return tri
 }
 
@@ -55,6 +59,12 @@ triangulate :: proc(points_backing: ^[dynamic]Point) -> ([]Point, []I_Triangle) 
 	tris_backing := make([dynamic]Tri, 0, len(points_backing) * 2)
 	defer delete(tris_backing)
 
+	// Presort the points by the largest dimension as an optimization
+	// so that we can discard triangles after a certain point.
+	// TODO: figure out why this breaks everything
+	// slice.sort_by(points_backing[:], point_less)
+
+	/*
 	// remap point cloud to 0-1 space
 	// find min and max boundries of the point cloud
 	xmin: f32 = 0
@@ -75,6 +85,7 @@ triangulate :: proc(points_backing: ^[dynamic]Point) -> ([]Point, []I_Triangle) 
 		points_backing[i].x = (p.x - xmin) / largest_dimension
 		points_backing[i].y = (p.y - ymin) / largest_dimension
 	}
+	*/
 
 	// determine the supertriangle
 	// add supertriangle around our points vertices to the end of the vertex list
@@ -98,24 +109,38 @@ triangulate :: proc(points_backing: ^[dynamic]Point) -> ([]Point, []I_Triangle) 
 
 	// for each sample point in the vertex list
 	for i := 0; i < len(points) - 3; i += 1 {
-		tracy.ZoneN("1 point loop")
 		point := points[i]
 
 		clear_dynamic_array(&edges_backing)
 		clear_dynamic_array(&to_delete)
 
-		// 	for each triangle currently in the triangle list
+		// for each triangle currently in the triangle list
 		for tri_i := 0; tri_i < len(triangles); tri_i += 1 {
-			tracy.ZoneN("2 tri loop")
-			tri := triangles[tri_i]
+			/*
+			if !triangles[tri_i].active {
+				continue
+			}
+
+			// if the x component of distance from current point to the
+			// circum-circle center is greater than the circumcicle radius,
+			// then this triangle never needs to be considered again
+			d := math.abs(point.x - triangles[tri_i].circle.center.x)
+			d = d * d // squared since we are doing that for circle radius
+			out_of_range := d > triangles[tri_i].circle.radius
+			triangles[tri_i].active = !out_of_range
+			if !triangles[tri_i].active {
+				continue
+			}
+			*/
+
 			// if the point lies in the triangle circumcircle then
-			if inside_circle(point, tri.circle) {
+			if inside_circle(point, triangles[tri_i].circle) {
 				// add the three triangle edges to the edge buffer
 				append(
 					&edges_backing,
-					I_Edge{tri.i.x, tri.i.y},
-					I_Edge{tri.i.y, tri.i.z},
-					I_Edge{tri.i.x, tri.i.z},
+					I_Edge{triangles[tri_i].i.x, triangles[tri_i].i.y},
+					I_Edge{triangles[tri_i].i.y, triangles[tri_i].i.z},
+					I_Edge{triangles[tri_i].i.x, triangles[tri_i].i.z},
 				)
 				// remove the triangle from the triangle list
 				remove_item(&triangles, tri_i)
@@ -140,7 +165,6 @@ triangulate :: proc(points_backing: ^[dynamic]Point) -> ([]Point, []I_Triangle) 
 				create_tri(i, edge.x, edge.y, points[i], points[edge.x], points[edge.y]),
 			)
 		}
-
 	} // endfor
 
 	// remove any triangles from the triangle list that use the supertriangle vertices
@@ -153,11 +177,13 @@ triangulate :: proc(points_backing: ^[dynamic]Point) -> ([]Point, []I_Triangle) 
 		}
 	}
 
+	/*
 	// undo the 0-1 mapping
 	for p, i in points_backing {
 		points_backing[i].x = p.x * largest_dimension + xmin
 		points_backing[i].y = p.y * largest_dimension + ymin
 	}
+	*/
 
 	result_tris := make([dynamic]I_Triangle, 0, len(triangles))
 	for tri in triangles {
