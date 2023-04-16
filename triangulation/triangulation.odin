@@ -39,7 +39,7 @@ Buffers :: struct {
 	ebo: u32,
 }
 
-MAX_VERTICES :: 1200
+MAX_VERTICES :: 5000
 
 init_mesh :: proc(mesh: ^Mesh) {
 	reserve_dynamic_array(&mesh.vertices, MAX_VERTICES)
@@ -62,7 +62,7 @@ add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
 	append(&mesh.vertices, Vertex{{x, y, 0.0}})
 	update_triangulation(mesh)
 }
-random_vertices :: proc(mesh: ^Mesh, count: int = 1000) {
+random_vertices :: proc(mesh: ^Mesh, count: int) {
 	r := rand.Rand{}
 	mesh.seed += 1
 	rand.init(&r, mesh.seed)
@@ -351,7 +351,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 				}
 			case .KEYDOWN:
 				if event.key.keysym.sym == .R {
-					random_vertices(&mesh)
+					random_vertices(&mesh, MAX_VERTICES - 100)
 				}
 			case .MOUSEBUTTONDOWN:
 				switch event.button.button {
