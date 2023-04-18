@@ -23,13 +23,19 @@ import "benchmark"
 
 
 Vertex :: struct {
-	pos: glsl.vec3,
+	pos:   glsl.vec3,
+	sel:   f32,
+	hover: f32,
+}
+Sel :: union {
+	u16,
 }
 
 Mesh :: struct {
 	vertices:      [dynamic]Vertex,
 	indices:       [dynamic]u16,
 	point_indices: [dynamic]u16,
+	selected:      Sel,
 	modified:      bool,
 	seed:          u64,
 }
@@ -39,15 +45,15 @@ Buffers :: struct {
 	ebo: u32,
 }
 
-MAX_VERTICES :: 5000
+MAX_VERTICES :: 1200
 
 init_mesh :: proc(mesh: ^Mesh) {
 	reserve_dynamic_array(&mesh.vertices, MAX_VERTICES)
 	append(
 		&mesh.vertices,
-		Vertex{{+0.53, +0.51, 0.0}},
-		Vertex{{+0.56, -0.52, 0.0}},
-		Vertex{{-0.58, -0.54, 0.0}},
+		Vertex{{+0.53, +0.51, 0.0}, 0, 0},
+		Vertex{{+0.56, -0.52, 0.0}, 0, 0},
+		Vertex{{-0.58, -0.54, 0.0}, 0, 0},
 	)
 	reserve_dynamic_array(&mesh.point_indices, MAX_VERTICES)
 	reserve_dynamic_array(&mesh.indices, MAX_VERTICES * 3)
@@ -59,8 +65,9 @@ add_vertex :: proc(mesh: ^Mesh, x, y: f32) {
 		fmt.println("ERROR: max vertices count reached", MAX_VERTICES)
 		return
 	}
-	append(&mesh.vertices, Vertex{{x, y, 0.0}})
+	append(&mesh.vertices, Vertex{{x, y, 0.0}, 0, 0})
 	update_triangulation(mesh)
+	mesh_update_hover(mesh, {x, y})
 }
 random_vertices :: proc(mesh: ^Mesh, count: int) {
 	r := rand.Rand{}
@@ -68,10 +75,12 @@ random_vertices :: proc(mesh: ^Mesh, count: int) {
 	rand.init(&r, mesh.seed)
 	clear_dynamic_array(&mesh.vertices)
 	for i := 0; i < count; i += 1 {
-		append(
-			&mesh.vertices,
-			Vertex{{rand.float32(&r) * 2 - 1, rand.float32(&r) * 2 - 1, rand.float32(&r) * 2 - 1}},
-		)
+		pos: glsl.vec3 = {
+			rand.float32(&r) * 2 - 1,
+			rand.float32(&r) * 2 - 1,
+			rand.float32(&r) * 2 - 1,
+		}
+		append(&mesh.vertices, Vertex{pos, 0, 0})
 	}
 
 	update_triangulation(mesh)
@@ -98,6 +107,50 @@ update_triangulation :: proc(mesh: ^Mesh) {
 	}
 
 	mesh.modified = true
+}
+mesh_set_hover :: proc(mesh: ^Mesh, i: u16) {
+	switch sel_i in mesh.selected {
+	case u16:
+		if sel_i == i {
+			return
+		}
+		mesh.vertices[sel_i].sel = 0
+		mesh.vertices[sel_i].hover = 0
+	}
+	mesh.selected = i
+	mesh.vertices[i].sel = 0
+	mesh.vertices[i].hover = 1
+	mesh.modified = true
+}
+mesh_set_selected :: proc(mesh: ^Mesh, value: bool) {
+	switch sel_i in mesh.selected {
+	case u16:
+		vfloat: f32 = 0
+		if value do vfloat = 1
+		mesh.vertices[sel_i].sel = vfloat
+		mesh.modified = true
+	}
+}
+mesh_update_hover :: proc(mesh: ^Mesh, mouse_pos: [2]f32) {
+	closest_i: int = -1
+	closest_dist: f32 = 9999999
+	for v, i in mesh.vertices {
+		d := dist_squared(mouse_pos, v.pos.xy)
+		if d < closest_dist {
+			closest_i = i
+			closest_dist = d
+		}
+	}
+	if closest_i >= 0 {
+		mesh_set_hover(mesh, cast(u16)closest_i)
+	}
+}
+mesh_update_mouse_drag :: proc(mesh: ^Mesh, mouse_pos: [2]f32) {
+	switch sel_i in mesh.selected {
+	case u16:
+		mesh.vertices[sel_i].pos.xy = mouse_pos
+	}
+	update_triangulation(mesh)
 }
 
 destroy_mesh :: proc(mesh: ^Mesh) {
@@ -186,16 +239,12 @@ _main :: proc() {
 			rand.init(&r, mesh.seed)
 			clear_dynamic_array(&mesh.vertices)
 			for i := 0; i < vertex_count; i += 1 {
-				append(
-					&mesh.vertices,
-					Vertex{
-						{
-							rand.float32(&r) * 2 - 1,
-							rand.float32(&r) * 2 - 1,
-							rand.float32(&r) * 2 - 1,
-						},
-					},
-				)
+				pos: glsl.vec3 = {
+					rand.float32(&r) * 2 - 1,
+					rand.float32(&r) * 2 - 1,
+					rand.float32(&r) * 2 - 1,
+				}
+				append(&mesh.vertices, Vertex{pos, 0, 0})
 			}
 
 			timer.start(&t, vertex_count)
@@ -333,6 +382,8 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	point_buffers := create_buffers(mesh.vertices[:], mesh.point_indices[:])
 	defer delete_buffers(&point_buffers)
 
+	left_btn_clicked := false
+
 	start_tick := time.tick_now()
 	game_loop: for {
 		// defer tracy.FrameMark()
@@ -353,19 +404,34 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 				if event.key.keysym.sym == .R {
 					random_vertices(&mesh, MAX_VERTICES - 100)
 				}
+			case .MOUSEMOTION:
+				// currently selected is same as hover and only one point can be selected
+				pos := gl_mouse_position(window_width, window_height)
+				if left_btn_clicked {
+					// if left button clicked, move selected to mouse position
+					mesh_update_mouse_drag(&mesh, pos)
+				} else {
+					// update hover
+					mesh_update_hover(&mesh, pos)
+				}
+			case .MOUSEBUTTONUP:
+				switch event.button.button {
+				case sdl2.BUTTON_LEFT:
+					left_btn_clicked = false
+				}
 			case .MOUSEBUTTONDOWN:
 				switch event.button.button {
 				case sdl2.BUTTON_LEFT:
+					left_btn_clicked = true
+				// update selected if within hover range
+				case sdl2.BUTTON_RIGHT:
 					// place vertex at mouse location
-					cx, cy: c.int
-					sdl2.GetMouseState(&cx, &cy)
-					glx := (f32(cx) / f32(window_width)) * 2 - 1
-					gly := (1 - (f32(cy) / f32(window_height))) * 2 - 1
-					fmt.printf("got mouse click at (%d, %d) (%.2f, %.2f)\n", cx, cy, glx, gly)
-					add_vertex(&mesh, glx, gly)
+					pos := gl_mouse_position(window_width, window_height)
+					add_vertex(&mesh, pos.x, pos.y)
 				}
 			}
 		}
+		mesh_set_selected(&mesh, left_btn_clicked)
 
 		gl.Viewport(0, 0, window_width, window_height)
 		gl.ClearColor(0, 0, 0, 1.0)
@@ -404,6 +470,19 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	}
 }
 
+gl_mouse_position :: proc(window_width, window_height: i32) -> [2]f32 {
+	cx, cy: c.int
+	sdl2.GetMouseState(&cx, &cy)
+	glx := (f32(cx) / f32(window_width)) * 2 - 1
+	gly := (1 - (f32(cy) / f32(window_height))) * 2 - 1
+	return {glx, gly}
+}
+dist_squared :: proc(p1, p2: [2]f32) -> f32 {
+	dx := p1.x - p2.x
+	dy := p1.y - p2.y
+	return dx * dx + dy * dy
+}
+
 create_buffers :: proc(vertices: []Vertex, indices: []u16) -> Buffers {
 	// Vertex Array Object
 	vao: u32
@@ -428,8 +507,15 @@ create_buffers :: proc(vertices: []Vertex, indices: []u16) -> Buffers {
 	// false: not normalized (to 0.0-1.0 or -1.0-1.0 range, for int,byte)
 	// stride: space between consective vertex attributes (0=auto for tightly packed)
 	// offset: space between start of Vertex and pos attribute
+	// position attribute
 	gl.VertexAttribPointer(0, 3, gl.FLOAT, false, size_of(Vertex), offset_of(Vertex, pos))
 	gl.EnableVertexAttribArray(0)
+	// selected attribute
+	gl.VertexAttribPointer(1, 1, gl.FLOAT, true, size_of(Vertex), offset_of(Vertex, sel))
+	gl.EnableVertexAttribArray(1)
+	// hover attribute
+	gl.VertexAttribPointer(2, 1, gl.FLOAT, true, size_of(Vertex), offset_of(Vertex, hover))
+	gl.EnableVertexAttribArray(2)
 
 	// Element Buffer Object
 	ebo: u32
@@ -490,9 +576,16 @@ delete_buffers :: proc(buffers: ^Buffers) {
 vertex_source := `#version 330 core
 
 layout(location=0) in vec3 aPos;
+layout(location=1) in float aSelected;
+layout(location=2) in float aHover;
+
+out float selected;
+out float hover;
 
 void main() {
 	gl_Position = vec4(aPos, 1.0);
+	selected = aSelected;
+	hover = aHover;
 }
 `
 
@@ -500,8 +593,13 @@ fragment_source1 := `#version 330 core
 
 out vec4 FragColor;
 
+in float selected;
+in float hover;
+
 void main() {
-	FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+	float rb = 1 - selected;
+	vec4 c = vec4(rb, 1.0, rb, 1.0);
+	FragColor = clamp(c, 0.0, 1.0);
 }
 `
 
@@ -509,9 +607,13 @@ fragment_source2 := `#version 330 core
 
 out vec4 FragColor;
 
+in float selected;
+in float hover;
+
 void main() {
-	vec3 c = vec3(1.0, 1.0, 1.0);
-	c *= 0.15;
+	float rb = 1 - selected;
+	vec3 c = vec3(rb, 1.0, rb);
+	c *= (hover * 0.15) + 0.15 + (selected * 0.15);
 	FragColor = vec4(c.xyz, 1.0);
 }
 `
