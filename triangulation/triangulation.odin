@@ -194,7 +194,6 @@ _main :: proc() {
 	// }
 
 	args := os.args[1:]
-	// profile := slice.contains(args, "--profile") || slice.contains(args, "-p")
 	test := slice.contains(args, "-test") || slice.contains(args, "-t")
 
 	if test {

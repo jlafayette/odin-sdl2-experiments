@@ -1,3 +1,10 @@
+/*
+	Save and load results of triangulation and compare to previous snapshots.
+
+	TODO: Use format described here: http://iris.elf.stuba.sk/JEEEC/data/pdf/1_108-09.pdf
+		  This will help comparing benchmarks with other implementations and using
+		  standardized datasets.
+*/
 package snapshot
 
 import "core:fmt"
