@@ -29,3 +29,25 @@ a_sharp := CHROMATIC_SCALE[10]
 b := CHROMATIC_SCALE[11]
 
 SCALE := [?]f64{c, d, e, f, g, a, b, 2 * c}
+
+@(private)
+next_pitch_up := true
+
+next_pitch :: proc(current_idx: int, scale: []f64) -> int {
+	new_idx: int
+	if next_pitch_up {
+		new_idx = current_idx + 1
+		if new_idx >= len(scale) {
+			next_pitch_up = false
+			new_idx = current_idx - 1
+		}
+	} else {
+		new_idx = current_idx - 1
+		if new_idx < 0 {
+			next_pitch_up = true
+			new_idx = current_idx + 1
+		}
+	}
+	// fmt.printf("pitch: %d->%d %t\n", current_idx, new_idx, next_pitch_up)
+	return new_idx
+}

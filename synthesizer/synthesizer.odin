@@ -48,22 +48,18 @@ _main :: proc() {
 }
 
 // for device.pUserData not sure if this is needed...
-mutex := sync.Mutex{}
+// mutex := sync.Mutex{}
 
 
 data_callback :: proc "cdecl" (device: ^ma.device, output, input: rawptr, frame_count: u32) {
 	sine: ^ma.waveform
-	sync.mutex_lock(&mutex)
+	// sync.mutex_lock(&mutex)
 	sine = cast(^ma.waveform)device.pUserData
-	sync.mutex_unlock(&mutex)
+	// sync.mutex_unlock(&mutex)
 	ma.waveform_read_pcm_frames(sine, output, cast(u64)frame_count, nil)
 }
 
-start_note :: proc(wave: ^ma.waveform, device: ^ma.device, config: ^ma.device_config) -> bool {
-	if ma.device_is_started(device) {
-		return false
-	}
-
+configure_wave :: proc(wave: ^ma.waveform, device: ^ma.device, config: ^ma.device_config) {
 	cfg: ma.waveform_config
 	cfg = ma.waveform_config_init(
 		config.playback.format,
@@ -74,7 +70,11 @@ start_note :: proc(wave: ^ma.waveform, device: ^ma.device, config: ^ma.device_co
 		pitch.c,
 	)
 	ma.waveform_init(&cfg, wave)
-
+}
+start_device :: proc(device: ^ma.device) -> bool {
+	if ma.device_is_started(device) {
+		return false
+	}
 	result := ma.device_start(device)
 	if result != ma.result.SUCCESS {
 		fmt.eprintf("Error starting device: %d\n", result)
@@ -82,29 +82,8 @@ start_note :: proc(wave: ^ma.waveform, device: ^ma.device, config: ^ma.device_co
 	}
 	return true
 }
-stop_note :: proc(device: ^ma.device) {
+stop_device :: proc(device: ^ma.device) {
 	ma.device_stop(device)
-}
-
-next_pitch_up := true
-
-next_pitch :: proc(current_idx: int) -> int {
-	new_idx: int
-	if next_pitch_up {
-		new_idx = current_idx + 1
-		if new_idx >= len(pitch.SCALE) {
-			next_pitch_up = false
-			new_idx = current_idx - 1
-		}
-	} else {
-		new_idx = current_idx - 1
-		if new_idx < 0 {
-			next_pitch_up = true
-			new_idx = current_idx + 1
-		}
-	}
-	// fmt.printf("pitch: %d->%d %t\n", current_idx, new_idx, next_pitch_up)
-	return new_idx
 }
 
 run :: proc(window_width: i32, window_height: i32, renderer: ^sdl2.Renderer, refresh_rate: i32) {
@@ -123,8 +102,9 @@ run :: proc(window_width: i32, window_height: i32, renderer: ^sdl2.Renderer, ref
 		fmt.eprintf("Error initializing device: %d\n", result)
 		return
 	}
-
 	defer ma.device_uninit(&device)
+
+	configure_wave(&wave, &device, &config)
 
 	pitch_idx := 0
 	loop_i := 0
@@ -140,7 +120,7 @@ run :: proc(window_width: i32, window_height: i32, renderer: ^sdl2.Renderer, ref
 		loop_i += 1
 		if loop_i > 15 {
 			loop_i = 0
-			pitch_idx = next_pitch(pitch_idx)
+			pitch_idx = pitch.next_pitch(pitch_idx, pitch.SCALE[:])
 			ma.waveform_set_frequency(&wave, pitch.SCALE[pitch_idx])
 		}
 		// Handle input events
@@ -158,9 +138,9 @@ run :: proc(window_width: i32, window_height: i32, renderer: ^sdl2.Renderer, ref
 				case .SPACE:
 					if !space_down {
 						pitch_idx = 0
-						next_pitch_up = true
-						start_note(&wave, &device, &config)
+						start_device(&device)
 						loop_i = 0
+						ma.waveform_set_frequency(&wave, pitch.SCALE[pitch_idx])
 					}
 					space_down = true
 				}
@@ -171,7 +151,7 @@ run :: proc(window_width: i32, window_height: i32, renderer: ^sdl2.Renderer, ref
 					sdl2.PushEvent(&sdl2.Event{type = .QUIT})
 				case .SPACE:
 					space_down = false
-					stop_note(&device)
+					stop_device(&device)
 				}
 			}
 		}
