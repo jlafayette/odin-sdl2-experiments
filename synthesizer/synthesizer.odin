@@ -58,6 +58,40 @@ data_callback :: proc "cdecl" (device: ^ma.device, output, input: rawptr, frame_
 	// sync.mutex_unlock(&mutex)
 	ma.waveform_read_pcm_frames(sine, output, cast(u64)frame_count, nil)
 }
+any_key_pressed :: proc() -> bool {
+	state := sdl2.GetKeyboardStateAsSlice()
+	// fmt.println(state)
+	{
+		using sdl2.Scancode
+		if state[SPACE] == 1 do return true
+		if state[Q] == 1 do return true
+		if state[W] == 1 do return true
+		if state[E] == 1 do return true
+		if state[R] == 1 do return true
+		if state[U] == 1 do return true
+		if state[I] == 1 do return true
+		if state[O] == 1 do return true
+		if state[P] == 1 do return true
+		if state[J] == 1 do return true
+		if state[K] == 1 do return true
+		if state[L] == 1 do return true
+		if state[SEMICOLON] == 1 do return true
+		if state[A] == 1 do return true
+		if state[S] == 1 do return true
+		if state[D] == 1 do return true
+		if state[F] == 1 do return true
+		if state[Z] == 1 do return true
+		if state[X] == 1 do return true
+		if state[C] == 1 do return true
+		if state[V] == 1 do return true
+		if state[M] == 1 do return true
+		if state[COMMA] == 1 do return true
+		if state[PERIOD] == 1 do return true
+		if state[SLASH] == 1 do return true
+	}
+	return false
+}
+
 
 configure_wave :: proc(wave: ^ma.waveform, device: ^ma.device, config: ^ma.device_config) {
 	cfg: ma.waveform_config
@@ -83,7 +117,9 @@ start_device :: proc(device: ^ma.device) -> bool {
 	return true
 }
 stop_device :: proc(device: ^ma.device) {
-	ma.device_stop(device)
+	if ma.device_is_started(device) {
+		ma.device_stop(device)
+	}
 }
 
 run :: proc(window_width: i32, window_height: i32, renderer: ^sdl2.Renderer, refresh_rate: i32) {
@@ -121,7 +157,7 @@ run :: proc(window_width: i32, window_height: i32, renderer: ^sdl2.Renderer, ref
 		if loop_i > 15 {
 			loop_i = 0
 			pitch_idx = pitch.next_pitch(pitch_idx, pitch.SCALE[:])
-			ma.waveform_set_frequency(&wave, pitch.SCALE[pitch_idx])
+			// ma.waveform_set_frequency(&wave, pitch.SCALE[pitch_idx])
 		}
 		// Handle input events
 		event: sdl2.Event
@@ -143,6 +179,54 @@ run :: proc(window_width: i32, window_height: i32, renderer: ^sdl2.Renderer, ref
 						ma.waveform_set_frequency(&wave, pitch.SCALE[pitch_idx])
 					}
 					space_down = true
+				case .Q:
+					ma.waveform_set_frequency(&wave, pitch.c * 2)
+				case .W:
+					ma.waveform_set_frequency(&wave, pitch.d * 2)
+				case .E:
+					ma.waveform_set_frequency(&wave, pitch.e * 2)
+				case .R:
+					ma.waveform_set_frequency(&wave, pitch.f * 2)
+				case .U:
+					ma.waveform_set_frequency(&wave, pitch.g * 2)
+				case .I:
+					ma.waveform_set_frequency(&wave, pitch.a * 2)
+				case .O:
+					ma.waveform_set_frequency(&wave, pitch.b * 2)
+				case .P:
+					ma.waveform_set_frequency(&wave, pitch.c * 3)
+				case .A:
+					ma.waveform_set_frequency(&wave, pitch.c)
+				case .S:
+					ma.waveform_set_frequency(&wave, pitch.d)
+				case .D:
+					ma.waveform_set_frequency(&wave, pitch.e)
+				case .F:
+					ma.waveform_set_frequency(&wave, pitch.f)
+				case .J:
+					ma.waveform_set_frequency(&wave, pitch.g)
+				case .K:
+					ma.waveform_set_frequency(&wave, pitch.a)
+				case .L:
+					ma.waveform_set_frequency(&wave, pitch.b)
+				case .SEMICOLON:
+					ma.waveform_set_frequency(&wave, pitch.c * 2)
+				case .Z:
+					ma.waveform_set_frequency(&wave, pitch.c * 0.5)
+				case .X:
+					ma.waveform_set_frequency(&wave, pitch.d * 0.5)
+				case .C:
+					ma.waveform_set_frequency(&wave, pitch.e * 0.5)
+				case .V:
+					ma.waveform_set_frequency(&wave, pitch.f * 0.5)
+				case .M:
+					ma.waveform_set_frequency(&wave, pitch.g * 0.5)
+				case .COMMA:
+					ma.waveform_set_frequency(&wave, pitch.a * 0.5)
+				case .PERIOD:
+					ma.waveform_set_frequency(&wave, pitch.b * 0.5)
+				case .SLASH:
+					ma.waveform_set_frequency(&wave, pitch.c * 0.5)
 				}
 
 			case .KEYUP:
@@ -154,6 +238,11 @@ run :: proc(window_width: i32, window_height: i32, renderer: ^sdl2.Renderer, ref
 					stop_device(&device)
 				}
 			}
+		}
+		if any_key_pressed() {
+			start_device(&device)
+		} else {
+			stop_device(&device)
 		}
 
 		// Render
