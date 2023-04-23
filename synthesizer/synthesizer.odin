@@ -142,6 +142,11 @@ run :: proc(window_width: i32, window_height: i32, renderer: ^sdl2.Renderer, ref
 
 	configure_wave(&wave, &device, &config)
 
+	// Render
+	sdl2.RenderPresent(renderer)
+	sdl2.SetRenderDrawColor(renderer, 0, 0, 0, 255)
+	sdl2.RenderClear(renderer)
+
 	pitch_idx := 0
 	loop_i := 0
 	space_down := false
@@ -246,9 +251,9 @@ run :: proc(window_width: i32, window_height: i32, renderer: ^sdl2.Renderer, ref
 		}
 
 		// Render
-		sdl2.RenderPresent(renderer)
-		sdl2.SetRenderDrawColor(renderer, 0, 0, 0, 255)
-		sdl2.RenderClear(renderer)
+		// sdl2.RenderPresent(renderer)
+		// sdl2.SetRenderDrawColor(renderer, 0, 0, 0, 255)
+		// sdl2.RenderClear(renderer)
 
 		free_all(context.temp_allocator)
 
