@@ -1,11 +1,8 @@
-package synthesizer
+package sinewaves
 
 import "core:fmt"
 import "core:mem"
-import "core:os"
-import "core:runtime"
 import "core:strings"
-import "core:sync"
 import "core:time"
 import "vendor:sdl2"
 import ma "vendor:miniaudio"
@@ -74,9 +71,7 @@ ADSR_init :: proc(config: ^ma.data_source_config, adsr: ^ADSR) -> bool {
 
 data_callback :: proc "cdecl" (device: ^ma.device, output, input: rawptr, frame_count: u32) {
 	sine: ^ma.waveform
-	// sync.mutex_lock(&mutex)
 	sine = cast(^ma.waveform)device.pUserData
-	// sync.mutex_unlock(&mutex)
 	ma.waveform_read_pcm_frames(sine, output, cast(u64)frame_count, nil)
 }
 any_key_pressed :: proc() -> bool {
