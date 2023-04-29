@@ -8,17 +8,42 @@ package breakout
 import "core:fmt"
 import "core:mem"
 import "core:os"
-import "core:time"
 import "core:slice"
-import "core:strings"
-import glsl "core:math/linalg/glsl"
 
 import "vendor:sdl2"
-import gl "vendor:OpenGL"
+
+import "game"
+
+
+_main :: proc() {
+	assert(sdl2.Init({.VIDEO}) == 0, sdl2.GetErrorString())
+	defer sdl2.Quit()
+
+	display_mode: sdl2.DisplayMode
+	sdl2.GetCurrentDisplayMode(0, &display_mode)
+	refresh_rate := display_mode.refresh_rate
+
+	window_width: i32 = 1280
+	window_height: i32 = 960
+
+	window := sdl2.CreateWindow(
+		"Breakout",
+		sdl2.WINDOWPOS_UNDEFINED,
+		sdl2.WINDOWPOS_UNDEFINED,
+		window_width,
+		window_height,
+		{.OPENGL},
+	)
+	assert(window != nil, sdl2.GetErrorString())
+	defer sdl2.DestroyWindow(window)
+
+	fmt.printf("%dx%d %d\n", window_width, window_height, refresh_rate)
+
+	game.run(window, window_width, window_height, refresh_rate)
+}
 
 
 main :: proc() {
-
 	args := os.args[1:]
 	if slice.contains(args, "-m") || slice.contains(args, "--mem-track") {
 		track: mem.Tracking_Allocator
@@ -36,13 +61,4 @@ main :: proc() {
 	} else {
 		_main()
 	}
-}
-
-_main :: proc() {
-
-	fmt.println("hellope!")
-
-	x := new([12]int)
-	free(x)
-
 }
