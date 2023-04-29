@@ -1,4 +1,4 @@
-package pitch
+package notes
 
 CHROMATIC_SCALE: [12]f64 = {
 	261.63,
@@ -31,23 +31,23 @@ b := CHROMATIC_SCALE[11]
 SCALE := [?]f64{c, d, e, f, g, a, b, 2 * c}
 
 @(private)
-next_pitch_up := true
+next_note_up := true
 
-next_pitch :: proc(current_idx: int, scale: []f64) -> int {
+next_note :: proc(current_idx: int, scale: []f64) -> int {
 	new_idx: int
-	if next_pitch_up {
+	if next_note_up {
 		new_idx = current_idx + 1
 		if new_idx >= len(scale) {
-			next_pitch_up = false
+			next_note_up = false
 			new_idx = current_idx - 1
 		}
 	} else {
 		new_idx = current_idx - 1
 		if new_idx < 0 {
-			next_pitch_up = true
+			next_note_up = true
 			new_idx = current_idx + 1
 		}
 	}
-	// fmt.printf("pitch: %d->%d %t\n", current_idx, new_idx, next_pitch_up)
+	// fmt.printf("pitch: %d->%d %t\n", current_idx, new_idx, next_note_up
 	return new_idx
 }
