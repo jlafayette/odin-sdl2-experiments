@@ -90,8 +90,8 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		tex.image_format = gl.RGB
 		tex.wrap_s = gl.REPEAT
 		tex.wrap_t = gl.REPEAT
-		tex.filter_min = gl.LINEAR
-		tex.filter_max = gl.LINEAR
+		tex.filter_min = gl.NEAREST
+		tex.filter_max = gl.NEAREST
 		gl.GenTextures(1, &tex.id)
 		alpha := false
 		w, h, nr_channels: i32
@@ -151,7 +151,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		gl.Viewport(0, 0, window_width, window_height)
 		gl.ClearColor(0.5, 0.5, 0.5, 1)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
-		draw_sprite(tex, sprite_program, quadVao, {100, 100}, {24, 32}, rotate, {1, 1, 1})
+		draw_sprite(tex, sprite_program, quadVao, {500, 450}, {240, 320}, rotate, {1, 1, 1})
 		gl_report_error()
 		sdl2.GL_SwapWindow(window)
 	}
