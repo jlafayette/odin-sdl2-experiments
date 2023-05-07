@@ -3,6 +3,7 @@ package game
 import "core:c"
 import "core:fmt"
 import "core:mem"
+import "core:math"
 import "core:os"
 import "core:runtime"
 import "core:time"
@@ -114,12 +115,17 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		}
 		// acceleration
 		acc: f32 = 0
-		if is_left do acc += -3
-		if is_right do acc += 3
+		if is_left do acc += -6
+		if is_right do acc += 6
 		velocity += acc
 
 		// update
 		paddle.pos.x += velocity
+		paddle.pos.x = math.clamp(
+			paddle.pos.x,
+			paddle.size.x * .5,
+			f32(game.window_width) - paddle.size.x * .5,
+		)
 
 		// render
 		gl.Viewport(0, 0, window_width, window_height)
