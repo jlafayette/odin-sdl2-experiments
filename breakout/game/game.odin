@@ -26,10 +26,6 @@ GameState :: enum {
 	MENU,
 	WIN,
 }
-Paddle :: struct {
-	pos:  glm.vec2,
-	size: glm.vec2,
-}
 
 run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32) {
 	// Init
@@ -70,6 +66,11 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		&projection,
 	)
 	paddle_texture := sprite_texture("breakout/textures/paddle.png", sprite_program, &projection)
+	ball_texture := sprite_texture(
+		"breakout/textures/awesomeface.png",
+		sprite_program,
+		&projection,
+	)
 
 	level: GameLevel
 	load_ok := game_level_load(&level, level_one_file, game.window_width, game.window_height / 2)
@@ -77,18 +78,14 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	assert(load_ok)
 	defer game_level_destroy(&level)
 
-	paddle := Paddle{}
-	{
-		w: f32 = 250
-		h: f32 = 50
-		// x := (f32(game.window_width) * .5) - (w * .5)
-		x := f32(game.window_width) * .5
-		y := f32(game.window_height) - (h * .5)
-		paddle.pos = {x, y}
-		paddle.size = {w, h}
-	}
+	paddle: Paddle
+	paddle_init(&paddle, game.window_width, game.window_height)
 
-	velocity: f32 = 0
+	ball: Ball
+	ball_init(&ball, game.window_width, game.window_height)
+
+	// TODO: calculate dt
+	dt: f32 = 1
 
 	// game loop
 	game_loop: for {
@@ -108,24 +105,8 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		keyboard_state := sdl2.GetKeyboardState(&numkeys)
 		is_left := keyboard_state[sdl2.Scancode.A] > 0 || keyboard_state[sdl2.Scancode.LEFT] > 0
 		is_right := keyboard_state[sdl2.Scancode.D] > 0 || keyboard_state[sdl2.Scancode.RIGHT] > 0
-		// drag
-		velocity *= 0.8
-		if velocity < 1 && velocity > -1 {
-			velocity = 0
-		}
-		// acceleration
-		acc: f32 = 0
-		if is_left do acc += -6
-		if is_right do acc += 6
-		velocity += acc
-
-		// update
-		paddle.pos.x += velocity
-		paddle.pos.x = math.clamp(
-			paddle.pos.x,
-			paddle.size.x * .5,
-			f32(game.window_width) - paddle.size.x * .5,
-		)
+		paddle_update(&paddle, dt, game.window_width, is_left, is_right)
+		ball_update(&ball, dt, game.window_width, game.window_height)
 
 		// render
 		gl.Viewport(0, 0, window_width, window_height)
@@ -162,6 +143,16 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			buffers.vao,
 			paddle.pos,
 			paddle.size,
+			0,
+			{1, 1, 1},
+		)
+		// draw ball
+		draw_sprite(
+			sprite_program,
+			ball_texture.id,
+			buffers.vao,
+			ball.pos,
+			ball.size,
 			0,
 			{1, 1, 1},
 		)
