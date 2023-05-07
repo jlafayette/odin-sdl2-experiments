@@ -91,6 +91,10 @@ sprite_texture :: proc(
 	alpha := false
 	nr_channels: i32
 	data := image.load(filename, &tex.width, &tex.height, &nr_channels, 0)
+	if nr_channels == 4 {
+		tex.internal_format = gl.RGBA
+		tex.image_format = gl.RGBA
+	}
 	defer image.image_free(data)
 	fmt.println("w:", tex.width, "h:", tex.height, "channels:", nr_channels)
 	gl.BindTexture(gl.TEXTURE_2D, tex.id);defer gl.BindTexture(gl.TEXTURE_2D, 0)

@@ -1,5 +1,6 @@
 package game
 
+import "core:c"
 import "core:fmt"
 import "core:mem"
 import "core:os"
@@ -23,6 +24,10 @@ GameState :: enum {
 	ACTIVE,
 	MENU,
 	WIN,
+}
+Paddle :: struct {
+	pos:  glm.vec2,
+	size: glm.vec2,
 }
 
 run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32) {
@@ -63,12 +68,26 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		sprite_program,
 		&projection,
 	)
+	paddle_texture := sprite_texture("breakout/textures/paddle.png", sprite_program, &projection)
 
 	level: GameLevel
 	load_ok := game_level_load(&level, level_one_file, game.window_width, game.window_height / 2)
 	fmt.printf("w: %v, h: %v\n", game.window_width, game.window_height)
 	assert(load_ok)
 	defer game_level_destroy(&level)
+
+	paddle := Paddle{}
+	{
+		w: f32 = 250
+		h: f32 = 50
+		// x := (f32(game.window_width) * .5) - (w * .5)
+		x := f32(game.window_width) * .5
+		y := f32(game.window_height) - (h * .5)
+		paddle.pos = {x, y}
+		paddle.size = {w, h}
+	}
+
+	velocity: f32 = 0
 
 	// game loop
 	game_loop: for {
@@ -84,14 +103,29 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 				}
 			}
 		}
+		numkeys: c.int
+		keyboard_state := sdl2.GetKeyboardState(&numkeys)
+		is_left := keyboard_state[sdl2.Scancode.A] > 0 || keyboard_state[sdl2.Scancode.LEFT] > 0
+		is_right := keyboard_state[sdl2.Scancode.D] > 0 || keyboard_state[sdl2.Scancode.RIGHT] > 0
+		// drag
+		velocity *= 0.8
+		if velocity < 1 && velocity > -1 {
+			velocity = 0
+		}
+		// acceleration
+		acc: f32 = 0
+		if is_left do acc += -3
+		if is_right do acc += 3
+		velocity += acc
 
 		// update
+		paddle.pos.x += velocity
 
 		// render
 		gl.Viewport(0, 0, window_width, window_height)
 		gl.ClearColor(0.5, 0.5, 0.5, 1)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
-		// draw level
+		// draw background
 		draw_sprite(
 			sprite_program,
 			background_texture.id,
@@ -101,6 +135,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			0,
 			{1, 1, 1},
 		)
+		// draw level
 		for brick in level.bricks {
 			texture_id: u32
 			if brick.is_solid {
@@ -114,6 +149,16 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			pos.y += size.y * .5
 			draw_sprite(sprite_program, texture_id, buffers.vao, pos, size, 0, brick.color)
 		}
+		// draw paddle
+		draw_sprite(
+			sprite_program,
+			paddle_texture.id,
+			buffers.vao,
+			paddle.pos,
+			paddle.size,
+			0,
+			{1, 1, 1},
+		)
 		gl_report_error()
 		sdl2.GL_SwapWindow(window)
 	}
