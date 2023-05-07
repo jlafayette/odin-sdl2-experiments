@@ -137,6 +137,6 @@ ball_handle_paddle_collision :: proc(ball: ^Ball, paddle: ^Paddle, info: Collide
 	strength: f32 = 2
 	old_velocity := ball.velocity
 	ball.velocity.x = INIT_BALL_VELOCITY.x * percentage * strength
-	ball.velocity.y = -ball.velocity.y
+	ball.velocity.y = -1 * abs(ball.velocity.y) // always bounce up
 	ball.velocity = glm.normalize(ball.velocity) * glm.length(old_velocity)
 }
