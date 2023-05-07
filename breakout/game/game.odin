@@ -82,11 +82,12 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	paddle_init(&paddle, game.window_width, game.window_height)
 
 	ball: Ball
-	paddle_top: f32 = paddle.pos.y - (paddle.size.y * .5)
-	ball_init(&ball, game.window_width, game.window_height, paddle_top)
+	ball_init(&ball, game.window_width, game.window_height, paddle.pos.y)
 
 	// TODO: calculate dt
 	dt: f32 = 1
+
+	debug_rotate: f32 = 0
 
 	// game loop
 	game_loop: for {
@@ -120,7 +121,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			if brick.destroyed {
 				continue
 			}
-			if check_collision(ball, brick.pos, brick.size) {
+			if check_collision(ball.pos, ball.size, brick.pos, brick.size) {
 				if !brick.is_solid {
 					level.bricks[brick_i].destroyed = true
 				}
@@ -136,7 +137,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			sprite_program,
 			background_texture.id,
 			buffers.vao,
-			{f32(game.window_width) * .5, f32(game.window_height) * .5},
+			{0, 0},
 			{f32(game.window_width), f32(game.window_height)},
 			0,
 			{1, 1, 1},
@@ -154,8 +155,6 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			}
 			pos := brick.pos
 			size := brick.size
-			pos.x += size.x * .5
-			pos.y += size.y * .5
 			draw_sprite(sprite_program, texture_id, buffers.vao, pos, size, 0, brick.color)
 		}
 		// draw paddle
@@ -176,6 +175,26 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			ball.pos,
 			ball.size,
 			0,
+			{1, 1, 1},
+		)
+		// debug
+		debug_rotate += 1
+		draw_sprite(
+			sprite_program,
+			brick_solid_texture.id,
+			buffers.vao,
+			{0, 0},
+			{100, 100},
+			debug_rotate,
+			{1, 1, 1},
+		)
+		draw_sprite(
+			sprite_program,
+			brick_solid_texture.id,
+			buffers.vao,
+			{f32(game.window_width) - 100, f32(game.window_height) - 100},
+			{100, 100},
+			debug_rotate,
 			{1, 1, 1},
 		)
 		gl_report_error()

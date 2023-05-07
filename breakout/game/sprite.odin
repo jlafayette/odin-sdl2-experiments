@@ -124,6 +124,7 @@ draw_sprite :: proc(
 	gl.UseProgram(program_id)
 	model := glm.mat4(1)
 	model = model * glm.mat4Translate({pos.x, pos.y, 0})
+	model = model * glm.mat4Translate({.5 * size.x, .5 * size.y, 0})
 	model = model * glm.mat4Rotate({0, 0, 1}, glm.radians(rotate))
 	model = model * glm.mat4Translate({-.5 * size.x, -.5 * size.y, 0})
 	model = model * glm.mat4Scale({size.x, size.y, 1})

@@ -10,8 +10,8 @@ Paddle :: struct {
 paddle_init :: proc(paddle: ^Paddle, window_width, window_height: int) {
 	w: f32 = 250
 	h: f32 = 50
-	x := f32(window_width) * .5
-	y := f32(window_height) - (h * .5)
+	x := (f32(window_width) * .5) - (w * .5)
+	y := f32(window_height) - h
 	paddle.pos = {x, y}
 	paddle.size = {w, h}
 }
@@ -32,5 +32,5 @@ paddle_update :: proc(paddle: ^Paddle, dt: f32, window_width: int, is_left, is_r
 
 	// update
 	paddle.pos.x += paddle.velocity
-	paddle.pos.x = clamp(paddle.pos.x, paddle.size.x * .5, f32(window_width) - paddle.size.x * .5)
+	paddle.pos.x = clamp(paddle.pos.x, 0, f32(window_width) - paddle.size.x)
 }
