@@ -64,36 +64,24 @@ sprite_buffers_destroy :: proc(buffers: ^SpriteBuffers) {
 }
 
 Texture2D :: struct {
-	id:              u32,
-	width:           i32,
-	height:          i32,
-	internal_format: i32,
-	image_format:    u32,
-	wrap_s:          i32,
-	wrap_t:          i32,
-	filter_min:      i32,
-	filter_max:      i32,
+	id:     u32,
+	width:  i32,
+	height: i32,
 }
 sprite_texture :: proc(
 	filename: cstring,
 	sprite_program: u32,
 	projection: ^glm.mat4,
 ) -> Texture2D {
-	// SpriteRenderer Init
 	tex: Texture2D
-	tex.internal_format = gl.RGB
-	tex.image_format = gl.RGB
-	tex.wrap_s = gl.REPEAT
-	tex.wrap_t = gl.REPEAT
-	tex.filter_min = gl.NEAREST
-	tex.filter_max = gl.NEAREST
 	gl.GenTextures(1, &tex.id)
-	alpha := false
 	nr_channels: i32
 	data := image.load(filename, &tex.width, &tex.height, &nr_channels, 0)
+	internal_format: i32 = gl.RGB
+	image_format: u32 = gl.RGB
 	if nr_channels == 4 {
-		tex.internal_format = gl.RGBA
-		tex.image_format = gl.RGBA
+		internal_format = gl.RGBA
+		image_format = gl.RGBA
 	}
 	defer image.image_free(data)
 	fmt.println("w:", tex.width, "h:", tex.height, "channels:", nr_channels)
@@ -101,18 +89,18 @@ sprite_texture :: proc(
 	gl.TexImage2D(
 		gl.TEXTURE_2D,
 		0,
-		tex.internal_format,
+		internal_format,
 		tex.width,
 		tex.height,
 		0,
-		tex.image_format,
+		image_format,
 		gl.UNSIGNED_BYTE,
 		data,
 	)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, tex.wrap_s)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, tex.wrap_t)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, tex.filter_min)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, tex.filter_max)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 
 	gl.UseProgram(sprite_program)
 	gl.Uniform1i(gl.GetUniformLocation(sprite_program, "image"), 0)
