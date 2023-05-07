@@ -14,8 +14,8 @@ ball_init :: proc(ball: ^Ball, window_width, window_height: int, paddle_top: f32
 	ball.radius = 12.5
 	ball.size = ball.radius * 2
 	ball.pos = {(f32(window_width) * .5) - ball.radius, paddle_top - ball.size.y}
-	ball.velocity = {4, -7}
-	ball.velocity *= .5
+	ball.velocity = {4, -14}
+	ball.velocity *= .8
 	ball.stuck = true
 }
 
@@ -57,11 +57,17 @@ check_collision_rect :: proc(p1, s1, p2, s2: glm.vec2) -> bool {
 	return x_collide && y_collide
 }
 
+CollideInfo :: struct {
+	collided:   bool,
+	dir:        Direction,
+	difference: glm.vec2,
+}
+
 check_collision_ball :: proc(
 	ball_pos: glm.vec2,
 	radius: f32,
 	rect_pos, rect_size: glm.vec2,
-) -> bool {
+) -> CollideInfo {
 	ball_center := ball_pos + radius
 	rect_half := rect_size * .5
 	rect_center := rect_pos + rect_half
@@ -69,7 +75,11 @@ check_collision_ball :: proc(
 	clamped := glm.clamp(difference, -rect_half, rect_half)
 	closest := rect_center + clamped
 	difference = closest - ball_center
-	return glm.length_vec2(difference) < radius
+	if glm.length_vec2(difference) < radius {
+		return CollideInfo{true, vector_direction(difference), difference}
+	} else {
+		return CollideInfo{false, .UP, {0, 0}}
+	}
 }
 
 Direction :: enum {
@@ -91,5 +101,27 @@ vector_direction :: proc(target: glm.vec2) -> Direction {
 		}
 	}
 	return Direction(best_match)
+}
 
+ball_handle_collision :: proc(ball: ^Ball, info: CollideInfo) {
+	if !info.collided {
+		return
+	}
+	if info.dir == .LEFT || info.dir == .RIGHT {
+		ball.velocity.x = -ball.velocity.x
+		overlap := ball.radius - abs(info.difference.x)
+		if info.dir == .LEFT {
+			ball.pos.x += overlap
+		} else {
+			ball.pos.x -= overlap
+		}
+	} else {
+		ball.velocity.y = -ball.velocity.y
+		overlap := ball.radius - abs(info.difference.y)
+		if info.dir == .UP {
+			ball.pos.y -= overlap
+		} else {
+			ball.pos.y += overlap
+		}
+	}
 }

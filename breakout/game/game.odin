@@ -119,7 +119,9 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			if brick.destroyed {
 				continue
 			}
-			if check_collision_ball(ball.pos, ball.radius, brick.pos, brick.size) {
+			collide_info := check_collision_ball(ball.pos, ball.radius, brick.pos, brick.size)
+			if collide_info.collided {
+				ball_handle_collision(&ball, collide_info)
 				if !brick.is_solid {
 					level.bricks[brick_i].destroyed = true
 				}
