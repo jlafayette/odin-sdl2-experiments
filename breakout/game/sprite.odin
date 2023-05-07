@@ -148,5 +148,9 @@ draw_sprite :: proc(
 
 	gl.BindVertexArray(vao);defer gl.BindVertexArray(0)
 
+	// needed for alpha channel to work
+	gl.Enable(gl.BLEND)
+	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+
 	gl.DrawArrays(gl.TRIANGLES, 0, 6)
 }
