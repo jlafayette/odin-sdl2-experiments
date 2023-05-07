@@ -6,10 +6,11 @@ import "core:path/filepath"
 import glm "core:math/linalg/glsl"
 
 Brick :: struct {
-	pos:      glm.vec2,
-	size:     glm.vec2,
-	color:    glm.vec3,
-	is_solid: bool,
+	pos:       glm.vec2,
+	size:      glm.vec2,
+	color:     glm.vec3,
+	is_solid:  bool,
+	destroyed: bool,
 }
 
 GameLevel :: struct {
@@ -69,7 +70,7 @@ game_level_init :: proc(
 			color = {0, 0, 0}
 		}
 		is_solid := t == '1'
-		append(&level.bricks, Brick{pos, size, color, is_solid})
+		append(&level.bricks, Brick{pos, size, color, is_solid, false})
 	}
 }
 game_level_destroy :: proc(level: ^GameLevel) {

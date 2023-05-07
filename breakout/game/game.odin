@@ -116,6 +116,16 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		if ball.stuck {
 			ball_stuck_update(&ball, paddle.pos, paddle.size)
 		}
+		for brick, brick_i in level.bricks {
+			if brick.destroyed {
+				continue
+			}
+			if check_collision(ball, brick.pos, brick.size) {
+				if !brick.is_solid {
+					level.bricks[brick_i].destroyed = true
+				}
+			}
+		}
 
 		// render
 		gl.Viewport(0, 0, window_width, window_height)
@@ -133,6 +143,9 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		)
 		// draw level
 		for brick in level.bricks {
+			if brick.destroyed {
+				continue
+			}
 			texture_id: u32
 			if brick.is_solid {
 				texture_id = brick_solid_texture.id

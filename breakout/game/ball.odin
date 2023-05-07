@@ -15,7 +15,7 @@ ball_init :: proc(ball: ^Ball, window_width, window_height: int, paddle_top: f32
 	ball.size = ball.radius * 2
 	ball.pos = {f32(window_width) * .5, paddle_top - ball.radius}
 	ball.velocity = {2, -7}
-	ball.velocity = {1, -3.5}
+	ball.velocity *= .1
 	ball.stuck = true
 }
 
@@ -48,4 +48,11 @@ ball_update :: proc(ball: ^Ball, dt: f32, window_width, window_height: int, ball
 		ball.velocity.y = -ball.velocity.y
 		ball.pos.y = f32(window_height) - ball.size.y
 	}
+}
+
+check_collision :: proc(ball: Ball, other_pos, other_size: glm.vec2) -> bool {
+	p1 := ball.pos - ball.radius // (ball.size * .5)
+	x_collide := p1.x + ball.size.x >= other_pos.x && other_pos.x + other_size.x >= p1.x
+	y_collide := p1.y + ball.size.y >= other_pos.y && other_pos.y + other_size.y >= p1.y
+	return x_collide && y_collide
 }
