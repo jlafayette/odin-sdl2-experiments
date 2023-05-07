@@ -51,8 +51,45 @@ ball_update :: proc(ball: ^Ball, dt: f32, window_width, window_height: int, ball
 	}
 }
 
-check_collision :: proc(p1, s1, p2, s2: glm.vec2) -> bool {
+check_collision_rect :: proc(p1, s1, p2, s2: glm.vec2) -> bool {
 	x_collide := p1.x + s1.x >= p2.x && p2.x + s2.x >= p1.x
 	y_collide := p1.y + s1.y >= p2.y && p2.y + s2.y >= p1.y
 	return x_collide && y_collide
+}
+
+check_collision_ball :: proc(
+	ball_pos: glm.vec2,
+	radius: f32,
+	rect_pos, rect_size: glm.vec2,
+) -> bool {
+	ball_center := ball_pos + radius
+	rect_half := rect_size * .5
+	rect_center := rect_pos + rect_half
+	difference := ball_center - rect_center
+	clamped := glm.clamp(difference, -rect_half, rect_half)
+	closest := rect_center + clamped
+	difference = closest - ball_center
+	return glm.length_vec2(difference) < radius
+}
+
+Direction :: enum {
+	UP,
+	RIGHT,
+	DOWN,
+	LEFT,
+}
+
+vector_direction :: proc(target: glm.vec2) -> Direction {
+	compass: [4]glm.vec2 = {glm.vec2{0, 1}, glm.vec2{1, 0}, glm.vec2{0, -1}, glm.vec2{-1, 0}}
+	max: f32 = 0
+	best_match: int = -1
+	for dir, i in compass {
+		dot_product := glm.dot(glm.normalize(target), dir)
+		if dot_product > max {
+			max = dot_product
+			best_match = i
+		}
+	}
+	return Direction(best_match)
+
 }
