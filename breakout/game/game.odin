@@ -82,7 +82,8 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	paddle_init(&paddle, game.window_width, game.window_height)
 
 	ball: Ball
-	ball_init(&ball, game.window_width, game.window_height)
+	paddle_top: f32 = paddle.pos.y - (paddle.size.y * .5)
+	ball_init(&ball, game.window_width, game.window_height, paddle_top)
 
 	// TODO: calculate dt
 	dt: f32 = 1
@@ -90,6 +91,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	// game loop
 	game_loop: for {
 		// process input
+		ball_released := false
 		event: sdl2.Event
 		for sdl2.PollEvent(&event) {
 			#partial switch event.type {
@@ -99,6 +101,10 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 				if event.key.keysym.sym == .ESCAPE {
 					sdl2.PushEvent(&sdl2.Event{type = .QUIT})
 				}
+			case .KEYDOWN:
+				if event.key.keysym.sym == .SPACE {
+					ball_released = true
+				}
 			}
 		}
 		numkeys: c.int
@@ -106,7 +112,10 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		is_left := keyboard_state[sdl2.Scancode.A] > 0 || keyboard_state[sdl2.Scancode.LEFT] > 0
 		is_right := keyboard_state[sdl2.Scancode.D] > 0 || keyboard_state[sdl2.Scancode.RIGHT] > 0
 		paddle_update(&paddle, dt, game.window_width, is_left, is_right)
-		ball_update(&ball, dt, game.window_width, game.window_height)
+		ball_update(&ball, dt, game.window_width, game.window_height, ball_released)
+		if ball.stuck {
+			ball_stuck_update(&ball, paddle.pos, paddle.size)
+		}
 
 		// render
 		gl.Viewport(0, 0, window_width, window_height)
