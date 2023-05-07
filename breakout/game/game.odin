@@ -115,17 +115,22 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		if ball.stuck {
 			ball_stuck_update(&ball, paddle.pos, paddle.size)
 		}
+		collide_info: CollideInfo
 		for brick, brick_i in level.bricks {
 			if brick.destroyed {
 				continue
 			}
-			collide_info := check_collision_ball(ball.pos, ball.radius, brick.pos, brick.size)
+			collide_info = check_collision_ball(ball.pos, ball.radius, brick.pos, brick.size)
 			if collide_info.collided {
 				ball_handle_collision(&ball, collide_info)
 				if !brick.is_solid {
 					level.bricks[brick_i].destroyed = true
 				}
 			}
+		}
+		collide_info = check_collision_ball(ball.pos, ball.radius, paddle.pos, paddle.size)
+		if collide_info.collided {
+			ball_handle_paddle_collision(&ball, &paddle, collide_info)
 		}
 
 		// render

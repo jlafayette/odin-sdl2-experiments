@@ -10,12 +10,13 @@ Ball :: struct {
 	stuck:    bool,
 }
 
+INIT_BALL_VELOCITY: glm.vec2 = {4, -14} * .8
+
 ball_init :: proc(ball: ^Ball, window_width, window_height: int, paddle_top: f32) {
-	ball.radius = 12.5
+	ball.radius = 20
 	ball.size = ball.radius * 2
 	ball.pos = {(f32(window_width) * .5) - ball.radius, paddle_top - ball.size.y}
-	ball.velocity = {4, -14}
-	ball.velocity *= .8
+	ball.velocity = INIT_BALL_VELOCITY
 	ball.stuck = true
 }
 
@@ -124,4 +125,18 @@ ball_handle_collision :: proc(ball: ^Ball, info: CollideInfo) {
 			ball.pos.y += overlap
 		}
 	}
+}
+
+ball_handle_paddle_collision :: proc(ball: ^Ball, paddle: ^Paddle, info: CollideInfo) {
+	if ball.stuck || !info.collided {
+		return
+	}
+	center_paddle := paddle.pos.x + (paddle.size.x * .5)
+	distance := (ball.pos.x + ball.radius) - center_paddle
+	percentage := distance / (paddle.size.x * .5)
+	strength: f32 = 2
+	old_velocity := ball.velocity
+	ball.velocity.x = INIT_BALL_VELOCITY.x * percentage * strength
+	ball.velocity.y = -ball.velocity.y
+	ball.velocity = glm.normalize(ball.velocity) * glm.length(old_velocity)
 }
