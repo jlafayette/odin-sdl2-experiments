@@ -27,7 +27,7 @@ GameState :: enum {
 
 run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32) {
 	// Init
-	game := Game{.MENU, 800, 600}
+	game := Game{.MENU, int(window_width), int(window_height)}
 	target_dt: f64 = 1000 / f64(refresh_rate)
 
 	sdl2.GL_SetAttribute(.CONTEXT_PROFILE_MASK, i32(sdl2.GLprofile.CORE))
@@ -52,9 +52,24 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	defer sprite_buffers_destroy(&buffers)
 
 	projection: glm.mat4 = glm.mat4Ortho3d(0, f32(window_width), f32(window_height), 0, -1.0, 1)
-	texture := sprite_texture("breakout/resources/images/ship1.png", sprite_program, &projection)
+	brick_texture := sprite_texture("breakout/textures/block.png", sprite_program, &projection)
+	brick_solid_texture := sprite_texture(
+		"breakout/textures/block_solid.png",
+		sprite_program,
+		&projection,
+	)
+	background_texture := sprite_texture(
+		"breakout/textures/background.jpg",
+		sprite_program,
+		&projection,
+	)
 
-	rotate: f32 = 0
+	level: GameLevel
+	load_ok := game_level_load(&level, level_one_file, game.window_width, game.window_height / 2)
+	fmt.printf("w: %v, h: %v\n", game.window_width, game.window_height)
+	assert(load_ok)
+	defer game_level_destroy(&level)
+
 	// game loop
 	game_loop: for {
 		// process input
@@ -71,21 +86,34 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		}
 
 		// update
-		rotate += 1
 
 		// render
 		gl.Viewport(0, 0, window_width, window_height)
 		gl.ClearColor(0.5, 0.5, 0.5, 1)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
+		// draw level
 		draw_sprite(
 			sprite_program,
-			texture.id,
+			background_texture.id,
 			buffers.vao,
-			{500, 450},
-			{240, 320},
-			rotate,
+			{f32(game.window_width) * .5, f32(game.window_height) * .5},
+			{f32(game.window_width), f32(game.window_height)},
+			0,
 			{1, 1, 1},
 		)
+		for brick in level.bricks {
+			texture_id: u32
+			if brick.is_solid {
+				texture_id = brick_solid_texture.id
+			} else {
+				texture_id = brick_texture.id
+			}
+			pos := brick.pos
+			size := brick.size
+			pos.x += size.x * .5
+			pos.y += size.y * .5
+			draw_sprite(sprite_program, texture_id, buffers.vao, pos, size, 0, brick.color)
+		}
 		gl_report_error()
 		sdl2.GL_SwapWindow(window)
 	}
