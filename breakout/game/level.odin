@@ -21,6 +21,7 @@ GameLevel :: struct {
 	completed: bool,
 }
 
+level_t_file: string = filepath.join({"breakout", "levels", "t.lvl"})
 level_one_file: string = filepath.join({"breakout", "levels", "one.lvl"})
 level_two_file: string = filepath.join({"breakout", "levels", "two.lvl"})
 level_three_file: string = filepath.join({"breakout", "levels", "three.lvl"})
@@ -29,7 +30,10 @@ level_four_file: string = filepath.join({"breakout", "levels", "four.lvl"})
 game_level_load :: proc(level: ^GameLevel, number, width, height: int) -> bool {
 	file := level_one_file
 	switch number {
-	case 1: file = level_one_file
+	case 0:
+		file = level_t_file
+	case 1:
+		file = level_one_file
 	case 2:
 		file = level_two_file
 	case 3:

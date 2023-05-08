@@ -30,7 +30,6 @@ GameState :: enum {
 run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32) {
 	// Init
 	game := Game{.MENU, int(window_width), int(window_height)}
-	target_dt: f64 = 1000 / f64(refresh_rate)
 
 	sdl2.GL_SetAttribute(.CONTEXT_PROFILE_MASK, i32(sdl2.GLprofile.CORE))
 	sdl2.GL_SetAttribute(.CONTEXT_MAJOR_VERSION, 3)
@@ -84,11 +83,23 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	ball: Ball
 	ball_init(&ball, game.window_width, game.window_height, paddle.pos.y)
 
-	// TODO: calculate dt
-	dt: f32 = 1
+	// timing stuff
+	fps: f64 = 0
+	target_ms_elapsed: f64 = 1000 / f64(refresh_rate)
+	ms_elapsed: f64 = target_ms_elapsed
+	target_dt: f64 = (1000 / f64(refresh_rate)) / 1000
+	dt := f32(ms_elapsed / 1000)
 
 	// game loop
 	game_loop: for {
+		// start = get_time()
+		start_tick := time.tick_now()
+		dt = f32(ms_elapsed / 1000)
+		fmt.printf("\nFPS: %f\n", fps)
+		fmt.printf("ms: %f\n", ms_elapsed)
+		fmt.printf("dt: %f\n", dt)
+		fmt.printf("tgt dt: %f\n", target_dt)
+
 		// process input
 		ball_released := false
 		next_level := false
@@ -210,6 +221,15 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		)
 		gl_report_error()
 		sdl2.GL_SwapWindow(window)
+
+		// timing (avoid looping too fast)
+		duration := time.tick_since(start_tick)
+		tgt_duration := time.Duration(target_ms_elapsed * f64(time.Millisecond))
+		to_sleep := tgt_duration - duration
+		time.accurate_sleep(to_sleep - (2 * time.Microsecond))
+		duration = time.tick_since(start_tick)
+		ms_elapsed = f64(time.duration_milliseconds(duration))
+		fps = 1000 / ms_elapsed
 	}
 }
 
