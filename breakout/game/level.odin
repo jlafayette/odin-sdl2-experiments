@@ -33,7 +33,11 @@ game_level_load :: proc(level: ^GameLevel, file: string, width, height: int) -> 
 	game_level_init(level, tiles[:], row_len, row_count, width, height)
 	return true
 }
-
+game_level_reset :: proc(level: ^GameLevel) {
+	for brick, i in level.bricks {
+		level.bricks[i].destroyed = false
+	}
+}
 game_level_init :: proc(
 	level: ^GameLevel,
 	tiles: []int,

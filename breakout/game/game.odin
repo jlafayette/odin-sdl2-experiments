@@ -111,7 +111,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		is_left := keyboard_state[sdl2.Scancode.A] > 0 || keyboard_state[sdl2.Scancode.LEFT] > 0
 		is_right := keyboard_state[sdl2.Scancode.D] > 0 || keyboard_state[sdl2.Scancode.RIGHT] > 0
 		paddle_update(&paddle, dt, game.window_width, is_left, is_right)
-		ball_update(&ball, dt, game.window_width, game.window_height, ball_released)
+		game_over := ball_update(&ball, dt, game.window_width, game.window_height, ball_released)
 		if ball.stuck {
 			ball_stuck_update(&ball, paddle.pos, paddle.size)
 		}
@@ -131,6 +131,11 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		collide_info = check_collision_ball(ball.pos, ball.radius, paddle.pos, paddle.size)
 		if collide_info.collided {
 			ball_handle_paddle_collision(&ball, &paddle, collide_info)
+		}
+		if game_over {
+			game_level_reset(&level)
+			paddle_reset(&paddle, game.window_width, game.window_height)
+			ball_reset(&ball, paddle.pos, paddle.size)
 		}
 
 		// render

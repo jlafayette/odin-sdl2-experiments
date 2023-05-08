@@ -15,6 +15,7 @@ paddle_init :: proc(paddle: ^Paddle, window_width, window_height: int) {
 	paddle.pos = {x, y}
 	paddle.size = {w, h}
 }
+paddle_reset :: paddle_init
 
 paddle_update :: proc(paddle: ^Paddle, dt: f32, window_width: int, is_left, is_right: bool) {
 	// TODO: use dt

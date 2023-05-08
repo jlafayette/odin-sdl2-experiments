@@ -19,6 +19,11 @@ ball_init :: proc(ball: ^Ball, window_width, window_height: int, paddle_top: f32
 	ball.velocity = INIT_BALL_VELOCITY
 	ball.stuck = true
 }
+ball_reset :: proc(ball: ^Ball, paddle_pos, paddle_size: glm.vec2) {
+	ball.stuck = true
+	ball.velocity = INIT_BALL_VELOCITY
+	ball_stuck_update(ball, paddle_pos, paddle_size)
+}
 
 ball_stuck_update :: proc(ball: ^Ball, paddle_pos, paddle_size: glm.vec2) {
 	ball.pos = paddle_pos
@@ -26,12 +31,17 @@ ball_stuck_update :: proc(ball: ^Ball, paddle_pos, paddle_size: glm.vec2) {
 	ball.pos.x += (paddle_size.x * .5) - ball.radius
 }
 
-ball_update :: proc(ball: ^Ball, dt: f32, window_width, window_height: int, ball_released: bool) {
+ball_update :: proc(
+	ball: ^Ball,
+	dt: f32,
+	window_width, window_height: int,
+	ball_released: bool,
+) -> bool {
 	if ball_released {
 		ball.stuck = false
 	}
 	if ball.stuck {
-		return
+		return false
 	}
 	ball.pos += ball.velocity * dt
 	if ball.pos.x <= 0 {
@@ -45,11 +55,13 @@ ball_update :: proc(ball: ^Ball, dt: f32, window_width, window_height: int, ball
 		ball.velocity.y = -ball.velocity.y
 		ball.pos.y = 0
 	}
-	// temp, this would lose the game
+	// this loses the game
 	if ball.pos.y + ball.size.y >= f32(window_height) {
-		ball.velocity.y = -ball.velocity.y
-		ball.pos.y = f32(window_height) - ball.size.y
+		return true
+		// ball.velocity.y = -ball.velocity.y
+		// ball.pos.y = f32(window_height) - ball.size.y
 	}
+	return false
 }
 
 check_collision_rect :: proc(p1, s1, p2, s2: glm.vec2) -> bool {
