@@ -73,7 +73,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	)
 
 	level: GameLevel
-	load_ok := game_level_load(&level, level_one_file, game.window_width, game.window_height / 2)
+	load_ok := game_level_load(&level, 1, game.window_width, game.window_height / 2)
 	fmt.printf("w: %v, h: %v\n", game.window_width, game.window_height)
 	assert(load_ok)
 	defer game_level_destroy(&level)
@@ -91,6 +91,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	game_loop: for {
 		// process input
 		ball_released := false
+		next_level := false
 		event: sdl2.Event
 		for sdl2.PollEvent(&event) {
 			#partial switch event.type {
@@ -101,8 +102,11 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 					sdl2.PushEvent(&sdl2.Event{type = .QUIT})
 				}
 			case .KEYDOWN:
-				if event.key.keysym.sym == .SPACE {
+				#partial switch event.key.keysym.sym {
+				case .SPACE:
 					ball_released = true
+				case .X:
+					next_level = true
 				}
 			}
 		}
@@ -116,9 +120,13 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			ball_stuck_update(&ball, paddle.pos, paddle.size)
 		}
 		collide_info: CollideInfo
+		level_complete := true
 		for brick, brick_i in level.bricks {
 			if brick.destroyed {
 				continue
+			}
+			if !brick.is_solid {
+				level_complete = false
 			}
 			collide_info = check_collision_ball(ball.pos, ball.radius, brick.pos, brick.size)
 			if collide_info.collided {
@@ -132,7 +140,20 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		if collide_info.collided {
 			ball_handle_paddle_collision(&ball, &paddle, collide_info)
 		}
+		if level_complete || next_level {
+			number := level.number + 1
+			load_ok = game_level_load(&level, number, game.window_width, game.window_height / 2)
+			// TODO: make game compeleted screen
+			if !load_ok {
+				fmt.eprintf("Error loading level %d\n", number)
+				break game_loop
+			}
+			paddle_reset(&paddle, game.window_width, game.window_height)
+			ball_reset(&ball, paddle.pos, paddle.size)
+		}
 		if game_over {
+			// TODO: make game over screen
+			// TODO: add lives and only reset level when they are out
 			game_level_reset(&level)
 			paddle_reset(&paddle, game.window_width, game.window_height)
 			ball_reset(&ball, paddle.pos, paddle.size)

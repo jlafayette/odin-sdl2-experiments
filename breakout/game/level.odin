@@ -14,6 +14,7 @@ Brick :: struct {
 }
 
 GameLevel :: struct {
+	number : int
 	bricks:    [dynamic]Brick,
 	row_len:   int,
 	row_count: int,
@@ -25,12 +26,28 @@ level_two_file: string = filepath.join({"breakout", "levels", "two.lvl"})
 level_three_file: string = filepath.join({"breakout", "levels", "three.lvl"})
 level_four_file: string = filepath.join({"breakout", "levels", "four.lvl"})
 
-game_level_load :: proc(level: ^GameLevel, file: string, width, height: int) -> bool {
+game_level_load :: proc(level: ^GameLevel, number, width, height: int) -> bool {
+	file := level_one_file
+	switch number {
+	case 1: file = level_one_file
+	case 2:
+		file = level_two_file
+	case 3:
+		file = level_three_file
+	case 4:
+		file = level_four_file
+	case:
+		return false
+	}
+	if len(level.bricks) > 0 {
+		clear_dynamic_array(&level.bricks)
+	}
 	tiles, row_len, row_count, ok := game_level_load_from_file(file)
 	if !ok do return false
 	defer delete(tiles)
 	fmt.printf("%d x %d\n", row_len, row_count)
 	game_level_init(level, tiles[:], row_len, row_count, width, height)
+	level.number = number
 	return true
 }
 game_level_reset :: proc(level: ^GameLevel) {
