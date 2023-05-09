@@ -92,13 +92,12 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 
 	// game loop
 	game_loop: for {
-		// start = get_time()
 		start_tick := time.tick_now()
 		dt = f32(ms_elapsed / 1000)
-		fmt.printf("\nFPS: %f\n", fps)
-		fmt.printf("ms: %f\n", ms_elapsed)
-		fmt.printf("dt: %f\n", dt)
-		fmt.printf("tgt dt: %f\n", target_dt)
+		// fmt.printf("\nFPS: %f\n", fps)
+		// fmt.printf("ms: %f\n", ms_elapsed)
+		// fmt.printf("dt: %f\n", dt)
+		// fmt.printf("tgt dt: %f\n", target_dt)
 
 		// process input
 		ball_released := false
@@ -166,7 +165,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			// TODO: make game over screen
 			// TODO: add lives and only reset level when they are out
 			game_level_reset(&level)
-			paddle_reset(&paddle, game.window_width, game.window_height)
+			// paddle_reset(&paddle, game.window_width, game.window_height)
 			ball_reset(&ball, paddle.pos, paddle.size)
 		}
 

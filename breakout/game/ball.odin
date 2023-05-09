@@ -10,7 +10,7 @@ Ball :: struct {
 	stuck:    bool,
 }
 
-INIT_BALL_VELOCITY: glm.vec2 = {4, -14} * .8
+INIT_BALL_VELOCITY: glm.vec2 = {100, -350}
 
 ball_init :: proc(ball: ^Ball, window_width, window_height: int, paddle_top: f32) {
 	ball.radius = 20
@@ -56,10 +56,8 @@ ball_update :: proc(
 		ball.pos.y = 0
 	}
 	// this loses the game
-	if ball.pos.y + ball.size.y >= f32(window_height) {
+	if ball.pos.y - ball.size.y >= f32(window_height) {
 		return true
-		// ball.velocity.y = -ball.velocity.y
-		// ball.pos.y = f32(window_height) - ball.size.y
 	}
 	return false
 }
