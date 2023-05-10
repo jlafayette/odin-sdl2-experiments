@@ -47,7 +47,16 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		return
 	}
 	defer gl.DeleteProgram(sprite_program)
-	gl.UseProgram(sprite_program)
+
+	particle_program, program2_ok := gl.load_shaders_source(
+		particle_vertex_source,
+		particle_fragment_source,
+	)
+	if !program2_ok {
+		fmt.eprintln("Failed to create GLSL program for particles")
+		return
+	}
+	defer gl.DeleteProgram(particle_program)
 
 	buffers := sprite_buffers_init()
 	defer sprite_buffers_destroy(&buffers)
@@ -68,6 +77,11 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	ball_texture := sprite_texture(
 		"breakout/textures/awesomeface.png",
 		sprite_program,
+		&projection,
+	)
+	particle_texture := sprite_texture(
+		"breakout/textures/particle2.png",
+		particle_program,
 		&projection,
 	)
 
@@ -150,6 +164,9 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		if collide_info.collided {
 			ball_handle_paddle_collision(&ball, &paddle, collide_info)
 		}
+		// update particles
+		particle_update(dt, ball.pos, ball.velocity, ball.radius * .5)
+		// handle level complete/next_level
 		if level_complete || next_level {
 			number := level.number + 1
 			load_ok = game_level_load(&level, number, game.window_width, game.window_height / 2)
@@ -161,6 +178,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			paddle_reset(&paddle, game.window_width, game.window_height)
 			ball_reset(&ball, paddle.pos, paddle.size)
 		}
+		// handle game over
 		if game_over {
 			// TODO: make game over screen
 			// TODO: add lives and only reset level when they are out
@@ -208,6 +226,8 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			0,
 			{1, 1, 1},
 		)
+		// draw particles
+		particles_render(particle_program, particle_texture.id, buffers.vao)
 		// draw ball
 		draw_sprite(
 			sprite_program,
