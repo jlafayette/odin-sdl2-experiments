@@ -10,7 +10,7 @@ Ball :: struct {
 	stuck:    bool,
 }
 
-INIT_BALL_VELOCITY: glm.vec2 = {100, -350}
+INIT_BALL_VELOCITY: glm.vec2 = {100, -350} * 1.4
 
 ball_init :: proc(ball: ^Ball, window_width, window_height: int, paddle_top: f32) {
 	ball.radius = 20

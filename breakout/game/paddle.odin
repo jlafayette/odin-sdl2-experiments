@@ -21,7 +21,7 @@ paddle_reset :: paddle_init
 paddle_update :: proc(paddle: ^Paddle, dt: f32, window_width: int, is_left, is_right: bool) {
 	// pos += vel * dt
 
-	max_vel: f32 = 700
+	max_vel: f32 = 800
 	if (!is_left && !is_right) || (is_left && is_right) {
 		paddle.velocity = 0
 	} else {

@@ -61,7 +61,7 @@ r_seed: u64 = 123
 particle_respawn :: proc(particle: ^Particle, source_pos, source_vel, offset: glm.vec2) {
 	r_seed += 1
 	rand.init(&r, r_seed)
-	r_pos: f32 = (rand.float32(&r) * 15) - 7.5
+	r_pos: f32 = (rand.float32(&r) * 17) - 7
 	particle.pos = source_pos + r_pos + offset
 	r_color := 0.75 + (rand.float32(&r) * 0.25)
 	particle.color = glm.vec4{r_color, r_color, r_color, 1}
