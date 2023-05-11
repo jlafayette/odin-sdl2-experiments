@@ -84,6 +84,12 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		particle_program,
 		&projection,
 	)
+	ball_sparks := ParticleEmitter{}
+	particle_emitter_init(&ball_sparks, 123)
+	defer particle_emitter_destroy(&ball_sparks)
+	// mouse_sparks := ParticleEmitter{}
+	// particle_emitter_init(&mouse_sparks, 123)
+	// defer particle_emitter_destroy(&mouse_sparks)
 
 	level: GameLevel
 	load_ok := game_level_load(&level, 1, game.window_width, game.window_height / 2)
@@ -165,7 +171,10 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			ball_handle_paddle_collision(&ball, &paddle, collide_info)
 		}
 		// update particles
-		particle_update(dt, ball.pos, ball.velocity, ball.radius * .5)
+		particle_update(&ball_sparks, dt, ball.pos, ball.velocity, ball.radius * .5)
+		// mouse_pos := get_mouse_pos(i32(game.window_width), i32(game.window_height))
+		// particle_update(&mouse_sparks, dt, glm.vec2(mouse_pos), {0, 0}, {0, 0})
+
 		// handle level complete/next_level
 		if level_complete || next_level {
 			number := level.number + 1
@@ -227,7 +236,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			{1, 1, 1},
 		)
 		// draw particles
-		particles_render(particle_program, particle_texture.id, buffers.vao)
+		particles_render(&ball_sparks, particle_program, particle_texture.id, buffers.vao)
 		// draw ball
 		draw_sprite(
 			sprite_program,
@@ -238,6 +247,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			0,
 			{1, 1, 1},
 		)
+		// particles_render(&mouse_sparks, particle_program, particle_texture.id, buffers.vao)
 		gl_report_error()
 		sdl2.GL_SwapWindow(window)
 
@@ -257,4 +267,11 @@ gl_report_error :: proc() {
 	if e != gl.NO_ERROR {
 		fmt.println("OpenGL Error:", e)
 	}
+}
+
+// Useful for spawning particles at mouse position for testing
+get_mouse_pos :: proc(window_width, window_height: i32) -> [2]f32 {
+	cx, cy: c.int
+	sdl2.GetMouseState(&cx, &cy)
+	return {f32(cx), f32(cy)}
 }
