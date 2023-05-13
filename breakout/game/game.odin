@@ -214,8 +214,9 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 
 		// render
 		gl.Viewport(0, 0, window_width, window_height)
-		// gl.ClearColor(0.5, 0.5, 0.5, 1)
-		// gl.Clear(gl.COLOR_BUFFER_BIT)
+		// matches edges of background image (this shows when screen shakes)
+		gl.ClearColor(0.007843, 0.02353, 0.02745, 1)
+		gl.Clear(gl.COLOR_BUFFER_BIT)
 		effects.shake = true
 		effects.confuse = false
 		effects.chaos = false

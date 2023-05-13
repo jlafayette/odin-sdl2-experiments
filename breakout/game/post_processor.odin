@@ -100,7 +100,7 @@ post_processor_init :: proc(
 	// shader set int "scene", 0 , true
 	gl.UseProgram(program_id)
 	gl.Uniform1i(gl.GetUniformLocation(program_id, "scene"), 0)
-	offset: f32 = 1 / 300
+	offset: f32 = 1.0 / 300.0
 	p.offsets = {
 		{-offset, offset},
 		{0, offset},

@@ -83,9 +83,9 @@ void main() {
 		TexCoords = aTexCoords;
 	}
 	if (shake) {
-		float strength = 0.01;
-		gl_Position.x += cos(time * 10) * strength;
-		gl_Position.y += cos(time * 15) * strength;
+		float strength = 0.005;
+		gl_Position.x += cos(time * 50) * strength;
+		gl_Position.y += cos(time * 75) * strength;
 	}
 }
 `
@@ -119,8 +119,9 @@ void main() {
 	} else if (confuse) {
 		color = vec4(1.0 - texture(scene, TexCoords).rgb, 1.0);
 	} else if (shake) {
+		color = texture(scene, TexCoords) * 0.6;
 		for (int i=0; i<9; i++) {
-			color += vec4(sample[i] * blur_kernel[i], 0.0f);
+			color += vec4(sample[i] * blur_kernel[i] * 0.4, 0.0f);
 		}
 		color.a = 1.0f;
 	} else {
