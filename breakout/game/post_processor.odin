@@ -10,21 +10,17 @@ PPVertex :: struct {
 	tex: glm.vec2,
 }
 PostProcessor :: struct {
-	msfbo:       u32,
-	fbo:         u32,
-	rbo:         u32,
-	vao:         u32,
-	width:       i32,
-	height:      i32,
-	texture:     Texture2D,
-	program_id:  u32,
-	confuse:     bool,
-	chaos:       bool,
-	shake:       bool,
-	vertices:    [6]PPVertex,
-	offsets:     [9][2]f32,
-	edge_kernel: [9]i32,
-	blur_kernel: [9]f32,
+	msfbo:      u32,
+	fbo:        u32,
+	rbo:        u32,
+	vao:        u32,
+	width:      i32,
+	height:     i32,
+	texture:    Texture2D,
+	program_id: u32,
+	confuse:    bool,
+	chaos:      bool,
+	shake:      bool,
 }
 post_processor_init :: proc(
 	p: ^PostProcessor,
@@ -73,7 +69,7 @@ post_processor_init :: proc(
 	// initialize render data and uniforms
 	{
 		vbo: u32
-		p.vertices = {
+		vertices: [6]PPVertex = {
 			{{-1, -1}, {0, 0}},
 			{{1, 1}, {1, 1}},
 			{{-1, 1}, {0, 1}},
@@ -84,12 +80,7 @@ post_processor_init :: proc(
 		gl.GenVertexArrays(1, &p.vao)
 		gl.GenBuffers(1, &vbo)
 		gl.BindBuffer(gl.ARRAY_BUFFER, vbo);defer gl.BindBuffer(gl.ARRAY_BUFFER, 0)
-		gl.BufferData(
-			gl.ARRAY_BUFFER,
-			size_of(p.vertices),
-			raw_data(p.vertices[:]),
-			gl.STATIC_DRAW,
-		)
+		gl.BufferData(gl.ARRAY_BUFFER, size_of(vertices), raw_data(vertices[:]), gl.STATIC_DRAW)
 
 		gl.BindVertexArray(p.vao);defer gl.BindVertexArray(0)
 		gl.EnableVertexAttribArray(0)
@@ -101,7 +92,7 @@ post_processor_init :: proc(
 	gl.UseProgram(program_id)
 	gl.Uniform1i(gl.GetUniformLocation(program_id, "scene"), 0)
 	offset: f32 = 1.0 / 300.0
-	p.offsets = {
+	offsets: [9][2]f32 = {
 		{-offset, offset},
 		{0, offset},
 		{offset, offset},
@@ -112,10 +103,10 @@ post_processor_init :: proc(
 		{0, -offset},
 		{offset, -offset},
 	}
-	gl.Uniform2fv(gl.GetUniformLocation(program_id, "offsets"), 9, &p.offsets[0][0])
-	p.edge_kernel = {-1, -1, -1, -1, 8, -1, -1, -1, -1}
-	gl.Uniform1iv(gl.GetUniformLocation(program_id, "edge_kernel"), 9, &p.edge_kernel[0])
-	p.blur_kernel = {
+	gl.Uniform2fv(gl.GetUniformLocation(program_id, "offsets"), 9, &offsets[0][0])
+	edge_kernel: [9]i32 = {-1, -1, -1, -1, 8, -1, -1, -1, -1}
+	gl.Uniform1iv(gl.GetUniformLocation(program_id, "edge_kernel"), 9, &edge_kernel[0])
+	blur_kernel: [9]f32 = {
 		1.0 / 16.0,
 		2.0 / 16.0,
 		1.0 / 16.0,
@@ -126,8 +117,7 @@ post_processor_init :: proc(
 		2.0 / 16.0,
 		1.0 / 16.0,
 	}
-	fmt.println(p.blur_kernel)
-	gl.Uniform1fv(gl.GetUniformLocation(program_id, "blur_kernel"), 9, &p.blur_kernel[0])
+	gl.Uniform1fv(gl.GetUniformLocation(program_id, "blur_kernel"), 9, &blur_kernel[0])
 
 	return true
 }
