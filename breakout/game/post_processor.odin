@@ -21,6 +21,7 @@ PostProcessor :: struct {
 	confuse:    bool,
 	chaos:      bool,
 	shake:      bool,
+	shake_time: f32,
 }
 post_processor_init :: proc(
 	p: ^PostProcessor,
@@ -149,6 +150,16 @@ generate_texture :: proc(width, height: i32) -> Texture2D {
 
 	return tex
 }
+
+post_processor_update :: proc(p: ^PostProcessor, dt: f32, did_collide: bool) {
+	p.shake_time -= dt
+	if did_collide {
+		p.shake_time = 0.05
+	}
+	p.shake_time = max(p.shake_time, 0)
+	p.shake = p.shake_time > 0
+}
+
 post_processor_begin_render :: proc(p: ^PostProcessor) {
 	gl.BindFramebuffer(gl.FRAMEBUFFER, p.msfbo)
 	gl.ClearColor(0, 0, 0, 1)

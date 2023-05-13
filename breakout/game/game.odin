@@ -95,10 +95,10 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		particle_program,
 		&projection,
 	)
-	ball_sparks := ParticleEmitter{}
+	ball_sparks: ParticleEmitter
 	particle_emitter_init(&ball_sparks, 123)
 	defer particle_emitter_destroy(&ball_sparks)
-	// mouse_sparks := ParticleEmitter{}
+	// mouse_sparks : ParticleEmitter
 	// particle_emitter_init(&mouse_sparks, 123)
 	// defer particle_emitter_destroy(&mouse_sparks)
 
@@ -114,6 +114,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	ball: Ball
 	ball_init(&ball, game.window_width, game.window_height, paddle.pos.y)
 
+	// effects
 	effects: PostProcessor
 	post_processor_init(&effects, effects_program, i32(game.window_width), i32(game.window_height))
 
@@ -165,6 +166,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		if ball.stuck {
 			ball_stuck_update(&ball, paddle.pos, paddle.size)
 		}
+		collide_happened := false
 		collide_info: CollideInfo
 		level_complete := true
 		for brick, brick_i in level.bricks {
@@ -176,6 +178,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			}
 			collide_info = check_collision_ball(ball.pos, ball.radius, brick.pos, brick.size)
 			if collide_info.collided {
+				collide_happened = true
 				ball_handle_collision(&ball, collide_info)
 				if !brick.is_solid {
 					level.bricks[brick_i].destroyed = true
@@ -184,12 +187,14 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		}
 		collide_info = check_collision_ball(ball.pos, ball.radius, paddle.pos, paddle.size)
 		if collide_info.collided {
+			collide_happened = true
 			ball_handle_paddle_collision(&ball, &paddle, collide_info)
 		}
 		// update particles
 		particle_update(&ball_sparks, dt, ball.pos, ball.velocity, ball.radius * .5)
 		// mouse_pos := get_mouse_pos(i32(game.window_width), i32(game.window_height))
 		// particle_update(&mouse_sparks, dt, glm.vec2(mouse_pos), {0, 0}, {0, 0})
+		post_processor_update(&effects, dt, collide_happened)
 
 		// handle level complete/next_level
 		if level_complete || next_level {
@@ -217,9 +222,8 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		// matches edges of background image (this shows when screen shakes)
 		gl.ClearColor(0.007843, 0.02353, 0.02745, 1)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
-		effects.shake = true
-		effects.confuse = false
-		effects.chaos = false
+		// effects.confuse = true
+		// effects.chaos = true
 		post_processor_begin_render(&effects)
 
 		// draw background
