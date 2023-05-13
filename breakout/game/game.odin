@@ -28,6 +28,7 @@ GameState :: enum {
 }
 
 run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32) {
+	game_start_tick := time.tick_now()
 	// Init
 	game := Game{.MENU, int(window_width), int(window_height)}
 
@@ -57,6 +58,16 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		return
 	}
 	defer gl.DeleteProgram(particle_program)
+
+	effects_program, effects_program_ok := gl.load_shaders_source(
+		postprocess_vertex_source,
+		postprocess_fragment_source,
+	)
+	if !effects_program_ok {
+		fmt.eprintln("Failed to create GLSL program for effects")
+		return
+	}
+	defer gl.DeleteProgram(effects_program)
 
 	buffers := sprite_buffers_init()
 	defer sprite_buffers_destroy(&buffers)
@@ -103,6 +114,9 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	ball: Ball
 	ball_init(&ball, game.window_width, game.window_height, paddle.pos.y)
 
+	effects: PostProcessor
+	post_processor_init(&effects, effects_program, i32(game.window_width), i32(game.window_height))
+
 	// timing stuff
 	fps: f64 = 0
 	target_ms_elapsed: f64 = 1000 / f64(refresh_rate)
@@ -118,6 +132,8 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		// fmt.printf("ms: %f\n", ms_elapsed)
 		// fmt.printf("dt: %f\n", dt)
 		// fmt.printf("tgt dt: %f\n", target_dt)
+		game_duration := time.tick_since(game_start_tick)
+		game_sec_elapsed := time.duration_seconds(game_duration)
 
 		// process input
 		ball_released := false
@@ -198,8 +214,13 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 
 		// render
 		gl.Viewport(0, 0, window_width, window_height)
-		gl.ClearColor(0.5, 0.5, 0.5, 1)
-		gl.Clear(gl.COLOR_BUFFER_BIT)
+		// gl.ClearColor(0.5, 0.5, 0.5, 1)
+		// gl.Clear(gl.COLOR_BUFFER_BIT)
+		effects.shake = true
+		effects.confuse = false
+		effects.chaos = false
+		post_processor_begin_render(&effects)
+
 		// draw background
 		draw_sprite(
 			sprite_program,
@@ -248,6 +269,8 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			{1, 1, 1},
 		)
 		// particles_render(&mouse_sparks, particle_program, particle_texture.id, buffers.vao)
+		post_processor_end_render(&effects)
+		post_processor_render(&effects, f32(game_sec_elapsed))
 		gl_report_error()
 		sdl2.GL_SwapWindow(window)
 
