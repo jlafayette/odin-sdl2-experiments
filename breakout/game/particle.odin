@@ -23,7 +23,6 @@ particle_emitter_init :: proc(e: ^ParticleEmitter, seed: u64) {
 	rand.init(&e.rand, seed)
 	e.particles = make([]Particle, 500)
 	e.rate_per_second = 120
-	fmt.printf("len particles: %d\n", len(e.particles))
 }
 particle_emitter_destroy :: proc(e: ^ParticleEmitter) {
 	delete(e.particles)
@@ -74,7 +73,6 @@ particle_respawn :: proc(
 	x := (rand.float32(r) * 10) - 5
 	y := (rand.float32(r) * 10) - 5
 	r_pos := glm.vec2{x, y}
-	// r_pos: f32 = (rand.float32(r) * 17) - 7
 	particle.pos = source_pos + r_pos + offset
 	r_color := 0.75 + (rand.float32(r) * 0.25)
 	particle.color = glm.vec4{r_color, r_color, r_color, 1}
@@ -86,15 +84,13 @@ particle_respawn :: proc(
 import "core:fmt"
 
 particles_render :: proc(e: ^ParticleEmitter, program_id: u32, texture_id: u32, vao: u32) {
-	// gl.Enable(gl.BLEND)
+	// gl.Enable(gl.BLEND) // doesn't seem to matter...
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE)
 	gl.UseProgram(program_id)
-	at_least_one := false
 	for p in e.particles {
 		if p.life <= 0 {
 			continue
 		}
-		at_least_one = true
 		pos := p.pos
 		gl.Uniform2fv(gl.GetUniformLocation(program_id, "offset"), 1, &pos[0])
 		col := p.color
@@ -105,8 +101,5 @@ particles_render :: proc(e: ^ParticleEmitter, program_id: u32, texture_id: u32, 
 		gl.BindTexture(gl.TEXTURE_2D, texture_id)
 		gl.BindVertexArray(vao);defer gl.BindVertexArray(0)
 		gl.DrawArrays(gl.TRIANGLES, 0, 6)
-	}
-	if !at_least_one {
-		fmt.print(":( ")
 	}
 }
