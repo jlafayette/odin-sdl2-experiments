@@ -15,6 +15,7 @@ import "vendor:sdl2"
 import gl "vendor:OpenGL"
 import "vendor:stb/image"
 
+DEBUG_FPS :: true
 
 Game :: struct {
 	state:         GameState,
@@ -108,7 +109,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	paddle_init(&paddle, game.window_width, game.window_height)
 
 	ball: Ball
-	ball_init(&ball, game.window_width, game.window_height, paddle.pos.y)
+	ball_init(&ball, paddle.pos, paddle.size)
 
 	powerups: Powerups
 	assert(powerups_init(&powerups, sprite_program, projection), "Failed to init powerups")
@@ -127,6 +128,13 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	ms_elapsed: f64 = target_ms_elapsed
 	target_dt: f64 = (1000 / f64(refresh_rate)) / 1000
 	dt := f32(ms_elapsed / 1000)
+	when DEBUG_FPS {
+		_lo_ms: f64 = 999
+		_hi_ms: f64 = 0
+		_ms: f64 = 0
+		_sec_tick: time.Tick = time.tick_now()
+		_frames: int = 0
+	}
 
 	// game loop
 	game_loop: for {
@@ -138,6 +146,30 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		// fmt.printf("tgt dt: %f\n", target_dt)
 		game_duration := time.tick_since(game_start_tick)
 		game_sec_elapsed := time.duration_seconds(game_duration)
+
+		// debug time tracking
+		when DEBUG_FPS {
+			_frames += 1
+			_ms += ms_elapsed
+			_lo_ms = min(ms_elapsed, _lo_ms)
+			_hi_ms = max(ms_elapsed, _hi_ms)
+			if time.duration_seconds(time.tick_since(_sec_tick)) >= 1.0 {
+				fmt.printf(
+					"%d FPS, min: %.2f, max: %.2f, avg: %.2f\n",
+					_frames,
+					_lo_ms,
+					_hi_ms,
+					_ms / cast(f64)_frames,
+				)
+				// reset
+				_lo_ms = 999
+				_hi_ms = 0
+				_ms = 0
+				_sec_tick = time.tick_now()
+				_frames = 0
+			}
+
+		}
 
 		// process input
 		ball_released := false
@@ -167,7 +199,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		paddle_update(&paddle, dt, game.window_width, is_left, is_right)
 		game_over := ball_update(&ball, dt, game.window_width, game.window_height, ball_released)
 		if ball.stuck {
-			ball_stuck_update(&ball, paddle.pos, paddle.size)
+			ball_stuck_update(&ball, paddle.pos)
 		}
 		collide_info: CollideInfo
 		level_complete := true
@@ -190,10 +222,12 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 				}
 			}
 		}
-		collide_info = check_collision_ball(ball.pos, ball.radius, paddle.pos, paddle.size)
-		if collide_info.collided {
-			append(&event_q, EventCollide{type = .PADDLE, pos = paddle.pos})
-			ball_handle_paddle_collision(&ball, &paddle, collide_info)
+		if !ball_released && !ball.stuck {
+			collide_info = check_collision_ball(ball.pos, ball.radius, paddle.pos, paddle.size)
+			if collide_info.collided {
+				append(&event_q, EventCollide{type = .PADDLE, pos = paddle.pos})
+				ball_handle_paddle_collision(&ball, &paddle, collide_info)
+			}
 		}
 		// update powerups
 		powerups_update(&powerups, dt, game.window_height)
@@ -235,8 +269,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 					ball.sticky += 1
 					paddle.sticky = true
 				case .PASS_THROUGH:
-				// ball.pass_through += 1
-				// ball.color = {1, .5, 1}
+					ball.pass_through += 1
 				case .PADDLE_SIZE_INCREASE:
 					paddle.size.x += 50
 				case .CONFUSE:
@@ -251,7 +284,8 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 					ball.velocity /= 1.2
 				case .STICKY:
 					ball.sticky -= 1
-					paddle.sticky = ball.sticky <= 0
+					paddle.sticky = ball.sticky > 0
+					fmt.printf("ball.sticky: %d, paddle sticky: %t\n", ball.sticky, paddle.sticky)
 				case .PASS_THROUGH:
 					ball.pass_through -= 1
 				case .PADDLE_SIZE_INCREASE:
@@ -336,6 +370,16 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		)
 		// draw powerups
 		powerups_render(&powerups, sprite_program, buffers.vao)
+		// debug stuff
+		draw_sprite(
+			sprite_program,
+			brick_texture.id,
+			buffers.vao,
+			{15, 15},
+			{10, 10 * cast(f32)ball.sticky},
+			0,
+			{0, 1, 1},
+		)
 		// draw particles
 		particles_render(&ball_sparks, particle_program, particle_texture.id, buffers.vao)
 		// draw ball

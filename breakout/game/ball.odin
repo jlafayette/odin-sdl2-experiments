@@ -9,28 +9,30 @@ Ball :: struct {
 	radius:       f32,
 	stuck:        bool,
 	sticky:       int,
+	stuck_offset: glm.vec2,
 	pass_through: int,
 }
 
 INIT_BALL_VELOCITY: glm.vec2 = {100, -350} * 1.4
 
-ball_init :: proc(ball: ^Ball, window_width, window_height: int, paddle_top: f32) {
+ball_init :: proc(ball: ^Ball, paddle_pos, paddle_size: glm.vec2) {
 	ball.radius = 20
 	ball.size = ball.radius * 2
-	ball.pos = {(f32(window_width) * .5) - ball.radius, paddle_top - ball.size.y}
-	ball.velocity = INIT_BALL_VELOCITY
-	ball.stuck = true
+	ball_reset(ball, paddle_pos, paddle_size)
 }
 ball_reset :: proc(ball: ^Ball, paddle_pos, paddle_size: glm.vec2) {
 	ball.stuck = true
 	ball.velocity = INIT_BALL_VELOCITY
-	ball_stuck_update(ball, paddle_pos, paddle_size)
+	ball.stuck_offset.x = (paddle_size.x * .5) - ball.radius
+	ball.stuck_offset.y = -ball.size.y
+	ball_stuck_update(ball, paddle_pos)
 }
-
-ball_stuck_update :: proc(ball: ^Ball, paddle_pos, paddle_size: glm.vec2) {
-	ball.pos = paddle_pos
-	ball.pos.y -= ball.size.y
-	ball.pos.x += (paddle_size.x * .5) - ball.radius
+ball_stick_on_collide :: proc(ball: ^Ball, paddle: ^Paddle) {
+	ball.stuck = true
+	ball.stuck_offset = ball.pos - paddle.pos
+}
+ball_stuck_update :: proc(ball: ^Ball, paddle_pos: glm.vec2) {
+	ball.pos = paddle_pos + ball.stuck_offset
 }
 
 ball_update :: proc(
@@ -41,6 +43,7 @@ ball_update :: proc(
 ) -> bool {
 	if ball_released {
 		ball.stuck = false
+		ball.stuck_offset = {0, 0}
 	}
 	if ball.stuck {
 		return false
@@ -151,4 +154,7 @@ ball_handle_paddle_collision :: proc(ball: ^Ball, paddle: ^Paddle, info: Collide
 	ball.velocity.x = INIT_BALL_VELOCITY.x * percentage * strength
 	ball.velocity.y = -1 * abs(ball.velocity.y) // always bounce up
 	ball.velocity = glm.normalize(ball.velocity) * glm.length(old_velocity)
+	if ball.sticky > 0 {
+		ball_stick_on_collide(ball, paddle)
+	}
 }
