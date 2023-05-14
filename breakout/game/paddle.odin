@@ -6,6 +6,7 @@ Paddle :: struct {
 	pos:      glm.vec2,
 	size:     glm.vec2,
 	velocity: f32,
+	sticky:   bool,
 }
 paddle_init :: proc(paddle: ^Paddle, window_width, window_height: int) {
 	w: f32 = 250

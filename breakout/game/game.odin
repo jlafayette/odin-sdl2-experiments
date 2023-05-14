@@ -180,7 +180,10 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			}
 			collide_info = check_collision_ball(ball.pos, ball.radius, brick.pos, brick.size)
 			if collide_info.collided {
-				append(&event_q, EventCollide{type = .BRICK, pos = brick.pos})
+				append(
+					&event_q,
+					EventCollide{type = .BRICK, pos = brick.pos, solid = brick.is_solid},
+				)
 				ball_handle_collision(&ball, collide_info)
 				if !brick.is_solid {
 					level.bricks[brick_i].destroyed = true
@@ -195,6 +198,9 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		// update powerups
 		powerups_update(&powerups, dt, game.window_height)
 		for pu, pu_i in powerups.data {
+			if pu.activated || pu.destroyed {
+				continue
+			}
 			collided := check_collision_rect(paddle.pos, paddle.size, pu.pos, pu.size)
 			if collided {
 				append(&event_q, EventCollide{type = .POWERUP, pos = pu.pos})
@@ -215,7 +221,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 				switch e.type {
 				case .BRICK:
 					effects.shake_time = 0.05
-					powerup_spawn(&powerups, e.pos)
+					if !e.solid do powerup_spawn(&powerups, e.pos)
 				case .PADDLE:
 					effects.shake_time = 0.02
 				case .POWERUP:
@@ -227,7 +233,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 					ball.velocity *= 1.2
 				case .STICKY:
 					ball.sticky += 1
-				// paddle.color = {1, 0.5, 1}
+					paddle.sticky = true
 				case .PASS_THROUGH:
 				// ball.pass_through += 1
 				// ball.color = {1, .5, 1}
@@ -242,8 +248,10 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 				fmt.printf("Deactivated powerup: %v\n", e.type)
 				switch e.type {
 				case .SPEED:
+					ball.velocity /= 1.2
 				case .STICKY:
 					ball.sticky -= 1
+					paddle.sticky = ball.sticky <= 0
 				case .PASS_THROUGH:
 					ball.pass_through -= 1
 				case .PADDLE_SIZE_INCREASE:
@@ -313,6 +321,10 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			draw_sprite(sprite_program, texture_id, buffers.vao, pos, size, 0, brick.color)
 		}
 		// draw paddle
+		paddle_color: glm.vec3 = {1, 1, 1}
+		if paddle.sticky {
+			paddle_color = {1, .5, 1}
+		}
 		draw_sprite(
 			sprite_program,
 			paddle_texture.id,
@@ -320,13 +332,17 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			paddle.pos,
 			paddle.size,
 			0,
-			{1, 1, 1},
+			paddle_color,
 		)
 		// draw powerups
 		powerups_render(&powerups, sprite_program, buffers.vao)
 		// draw particles
 		particles_render(&ball_sparks, particle_program, particle_texture.id, buffers.vao)
 		// draw ball
+		ball_color: glm.vec3 = {1, 1, 1}
+		if ball.pass_through > 0 {
+			ball_color = {1, .5, 1}
+		}
 		draw_sprite(
 			sprite_program,
 			ball_texture.id,
@@ -334,7 +350,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			ball.pos,
 			ball.size,
 			0,
-			{1, 1, 1},
+			ball_color,
 		)
 		// particles_render(&mouse_sparks, particle_program, particle_texture.id, buffers.vao)
 		post_processor_end_render(&effects)

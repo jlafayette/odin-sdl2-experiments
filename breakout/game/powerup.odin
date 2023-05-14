@@ -1,6 +1,7 @@
 package game
 
 import "core:fmt"
+import "core:strings"
 import "core:math/rand"
 import glm "core:math/linalg/glsl"
 
@@ -20,6 +21,15 @@ powerup_textures: [6]cstring = {
 	"breakout/textures/powerup_confuse.png",
 	"breakout/textures/powerup_chaos.png",
 }
+powerup_colors: [6]glm.vec3 = {
+	{0.5, 0.5, 1.0},
+	{1.0, 0.5, 1.0},
+	{.5, 1, .5},
+	{1, .6, .4},
+	{1, .3, .3},
+	{.9, .25, .25},
+}
+powerup_durations: [6]f32 = {30, 20, 10, 30, 15, 15}
 
 Powerup :: struct {
 	type:      PowerupType,
@@ -29,23 +39,6 @@ Powerup :: struct {
 	duration:  f32,
 	activated: bool,
 	destroyed: bool,
-}
-powerup_color :: proc(t: PowerupType) -> glm.vec3 {
-	switch t {
-	case .SPEED:
-		return {0.5, 0.5, 1.0}
-	case .STICKY:
-		return {1.0, 0.5, 1.0}
-	case .PASS_THROUGH:
-		return {.5, 1, .5}
-	case .PADDLE_SIZE_INCREASE:
-		return {1, .6, .4}
-	case .CONFUSE:
-		return {1, .3, .3}
-	case .CHAOS:
-		return {.9, .25, .25}
-	}
-	return {0, 0, 0}
 }
 
 Powerups :: struct {
@@ -68,7 +61,7 @@ powerups_destroy :: proc(p: ^Powerups) {
 
 powerup_spawn :: proc(p: ^Powerups, pos: glm.vec2) {
 	r := rand.float32(&p.rand)
-	r *= 0.1
+	r *= 0.12
 	pu: Maybe(Powerup)
 	switch r {
 	case 0.00 ..< 0.02:
@@ -98,8 +91,7 @@ powerup_spawn :: proc(p: ^Powerups, pos: glm.vec2) {
 	}
 	powerup, ok := pu.?
 	if ok {
-		powerup.duration = 2
-		powerup.activated = true
+		powerup.duration = powerup_durations[powerup.type]
 		powerup.pos = pos
 		powerup.size = {100, 25}
 		powerup.velocity = {0, 100}
@@ -108,13 +100,12 @@ powerup_spawn :: proc(p: ^Powerups, pos: glm.vec2) {
 		powerup_report(p)
 	}
 }
-import "core:strings"
 powerup_report :: proc(p: ^Powerups) {
 	b: strings.Builder
 	strings.builder_init_len_cap(&b, 0, 512, context.temp_allocator)
 	fmt.sbprintf(&b, "%d  (", len(p.data))
 	for pu in p.data {
-		fmt.sbprintf(&b, "%v ", pu.type)
+		fmt.sbprintf(&b, "%.2f ", pu.duration)
 	}
 	fmt.sbprint(&b, ")\n")
 	fmt.print(strings.to_string(b))
@@ -149,6 +140,7 @@ powerups_handle_collision :: proc(p: ^Powerups, paddle: ^Paddle, pu_i: int) {
 }
 powerups_render :: proc(p: ^Powerups, program_id: u32, vao: u32) {
 	for pu in p.data {
+		if pu.destroyed do continue
 		draw_sprite(
 			program_id,
 			p.texture_ids[pu.type],
@@ -156,7 +148,7 @@ powerups_render :: proc(p: ^Powerups, program_id: u32, vao: u32) {
 			pu.pos,
 			pu.size,
 			0,
-			powerup_color(pu.type),
+			powerup_colors[pu.type],
 		)
 	}
 }

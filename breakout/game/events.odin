@@ -10,8 +10,9 @@ EventCollideType :: enum {
 }
 
 EventCollide :: struct {
-	type: EventCollideType,
-	pos:  glm.vec2,
+	type:  EventCollideType,
+	pos:   glm.vec2,
+	solid: bool,
 }
 EventPowerupActivated :: struct {
 	type: PowerupType,
