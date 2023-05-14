@@ -73,27 +73,23 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	defer sprite_buffers_destroy(&buffers)
 
 	projection: glm.mat4 = glm.mat4Ortho3d(0, f32(window_width), f32(window_height), 0, -1.0, 1)
-	brick_texture := sprite_texture("breakout/textures/block.png", sprite_program, &projection)
+	brick_texture := sprite_texture("breakout/textures/block.png", sprite_program, projection)
 	brick_solid_texture := sprite_texture(
 		"breakout/textures/block_solid.png",
 		sprite_program,
-		&projection,
+		projection,
 	)
 	background_texture := sprite_texture(
 		"breakout/textures/background.jpg",
 		sprite_program,
-		&projection,
+		projection,
 	)
-	paddle_texture := sprite_texture("breakout/textures/paddle.png", sprite_program, &projection)
-	ball_texture := sprite_texture(
-		"breakout/textures/awesomeface.png",
-		sprite_program,
-		&projection,
-	)
+	paddle_texture := sprite_texture("breakout/textures/paddle.png", sprite_program, projection)
+	ball_texture := sprite_texture("breakout/textures/awesomeface.png", sprite_program, projection)
 	particle_texture := sprite_texture(
 		"breakout/textures/particle2.png",
 		particle_program,
-		&projection,
+		projection,
 	)
 	ball_sparks: ParticleEmitter
 	particle_emitter_init(&ball_sparks, 123)
@@ -113,6 +109,9 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 
 	ball: Ball
 	ball_init(&ball, game.window_width, game.window_height, paddle.pos.y)
+
+	powerups: Powerups
+	assert(powerups_init(&powerups, sprite_program, projection), "Failed to init powerups")
 
 	// effects
 	effects: PostProcessor
@@ -181,7 +180,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			}
 			collide_info = check_collision_ball(ball.pos, ball.radius, brick.pos, brick.size)
 			if collide_info.collided {
-				append(&event_q, EventCollide{type = .BRICK})
+				append(&event_q, EventCollide{type = .BRICK, pos = brick.pos})
 				ball_handle_collision(&ball, collide_info)
 				if !brick.is_solid {
 					level.bricks[brick_i].destroyed = true
@@ -190,9 +189,19 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		}
 		collide_info = check_collision_ball(ball.pos, ball.radius, paddle.pos, paddle.size)
 		if collide_info.collided {
-			append(&event_q, EventCollide{type = .PADDLE})
+			append(&event_q, EventCollide{type = .PADDLE, pos = paddle.pos})
 			ball_handle_paddle_collision(&ball, &paddle, collide_info)
 		}
+		// update powerups
+		powerups_update(&powerups, dt, game.window_height)
+		for pu, pu_i in powerups.data {
+			collided := check_collision_rect(paddle.pos, paddle.size, pu.pos, pu.size)
+			if collided {
+				append(&event_q, EventCollide{type = .POWERUP, pos = pu.pos})
+				powerups_handle_collision(&powerups, &paddle, pu_i)
+			}
+		}
+
 		// update particles
 		particle_update(&ball_sparks, dt, ball.pos, ball.velocity, ball.radius * .5)
 		// mouse_pos := get_mouse_pos(i32(game.window_width), i32(game.window_height))
@@ -206,8 +215,43 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 				switch e.type {
 				case .BRICK:
 					effects.shake_time = 0.05
+					powerup_spawn(&powerups, e.pos)
 				case .PADDLE:
 					effects.shake_time = 0.02
+				case .POWERUP:
+				}
+			case EventPowerupActivated:
+				fmt.printf("Activated powerup: %v\n", e.type)
+				switch e.type {
+				case .SPEED:
+					ball.velocity *= 1.2
+				case .STICKY:
+					ball.sticky += 1
+				// paddle.color = {1, 0.5, 1}
+				case .PASS_THROUGH:
+				// ball.pass_through += 1
+				// ball.color = {1, .5, 1}
+				case .PADDLE_SIZE_INCREASE:
+					paddle.size.x += 50
+				case .CONFUSE:
+					effects.confuse = true
+				case .CHAOS:
+					effects.chaos = true
+				}
+			case EventPowerupDeactivated:
+				fmt.printf("Deactivated powerup: %v\n", e.type)
+				switch e.type {
+				case .SPEED:
+				case .STICKY:
+					ball.sticky -= 1
+				case .PASS_THROUGH:
+					ball.pass_through -= 1
+				case .PADDLE_SIZE_INCREASE:
+					paddle.size.x -= 50
+				case .CONFUSE:
+					effects.confuse = false
+				case .CHAOS:
+					effects.chaos = false
 				}
 			}
 		}
@@ -278,6 +322,8 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			0,
 			{1, 1, 1},
 		)
+		// draw powerups
+		powerups_render(&powerups, sprite_program, buffers.vao)
 		// draw particles
 		particles_render(&ball_sparks, particle_program, particle_texture.id, buffers.vao)
 		// draw ball

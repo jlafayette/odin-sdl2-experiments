@@ -1,17 +1,29 @@
 package game
 
+import glm "core:math/linalg/glsl"
+
 
 EventCollideType :: enum {
 	PADDLE,
 	BRICK,
+	POWERUP,
 }
 
 EventCollide :: struct {
 	type: EventCollideType,
+	pos:  glm.vec2,
+}
+EventPowerupActivated :: struct {
+	type: PowerupType,
+}
+EventPowerupDeactivated :: struct {
+	type: PowerupType,
 }
 
 Event :: union {
 	EventCollide,
+	EventPowerupActivated,
+	EventPowerupDeactivated,
 }
 
 event_q: [dynamic]Event

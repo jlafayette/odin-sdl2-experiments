@@ -68,11 +68,7 @@ Texture2D :: struct {
 	width:  i32,
 	height: i32,
 }
-sprite_texture :: proc(
-	filename: cstring,
-	sprite_program: u32,
-	projection: ^glm.mat4,
-) -> Texture2D {
+sprite_texture :: proc(filename: cstring, sprite_program: u32, projection: glm.mat4) -> Texture2D {
 	tex: Texture2D
 	gl.GenTextures(1, &tex.id)
 	nr_channels: i32
@@ -104,12 +100,8 @@ sprite_texture :: proc(
 
 	gl.UseProgram(sprite_program)
 	gl.Uniform1i(gl.GetUniformLocation(sprite_program, "image"), 0)
-	gl.UniformMatrix4fv(
-		gl.GetUniformLocation(sprite_program, "projection"),
-		1,
-		false,
-		&projection[0, 0],
-	)
+	proj := projection
+	gl.UniformMatrix4fv(gl.GetUniformLocation(sprite_program, "projection"), 1, false, &proj[0, 0])
 	return tex
 }
 

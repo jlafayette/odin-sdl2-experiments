@@ -3,11 +3,13 @@ package game
 import glm "core:math/linalg/glsl"
 
 Ball :: struct {
-	pos:      glm.vec2,
-	size:     glm.vec2,
-	velocity: glm.vec2,
-	radius:   f32,
-	stuck:    bool,
+	pos:          glm.vec2,
+	size:         glm.vec2,
+	velocity:     glm.vec2,
+	radius:       f32,
+	stuck:        bool,
+	sticky:       int,
+	pass_through: int,
 }
 
 INIT_BALL_VELOCITY: glm.vec2 = {100, -350} * 1.4
