@@ -118,6 +118,10 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	effects: PostProcessor
 	post_processor_init(&effects, effects_program, i32(game.window_width), i32(game.window_height))
 
+	// events
+	assert(event_q_init(), "Failed to init event queue")
+	defer event_q_destroy()
+
 	// timing stuff
 	fps: f64 = 0
 	target_ms_elapsed: f64 = 1000 / f64(refresh_rate)
@@ -166,7 +170,6 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		if ball.stuck {
 			ball_stuck_update(&ball, paddle.pos, paddle.size)
 		}
-		collide_happened := false
 		collide_info: CollideInfo
 		level_complete := true
 		for brick, brick_i in level.bricks {
@@ -178,7 +181,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			}
 			collide_info = check_collision_ball(ball.pos, ball.radius, brick.pos, brick.size)
 			if collide_info.collided {
-				collide_happened = true
+				append(&event_q, EventCollide{type = .BRICK})
 				ball_handle_collision(&ball, collide_info)
 				if !brick.is_solid {
 					level.bricks[brick_i].destroyed = true
@@ -187,14 +190,28 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		}
 		collide_info = check_collision_ball(ball.pos, ball.radius, paddle.pos, paddle.size)
 		if collide_info.collided {
-			collide_happened = true
+			append(&event_q, EventCollide{type = .PADDLE})
 			ball_handle_paddle_collision(&ball, &paddle, collide_info)
 		}
 		// update particles
 		particle_update(&ball_sparks, dt, ball.pos, ball.velocity, ball.radius * .5)
 		// mouse_pos := get_mouse_pos(i32(game.window_width), i32(game.window_height))
 		// particle_update(&mouse_sparks, dt, glm.vec2(mouse_pos), {0, 0}, {0, 0})
-		post_processor_update(&effects, dt, collide_happened)
+		post_processor_update(&effects, dt)
+		// handle events
+		for event in event_q {
+			switch e in event {
+			case EventCollide:
+				effects.shake = true
+				switch e.type {
+				case .BRICK:
+					effects.shake_time = 0.05
+				case .PADDLE:
+					effects.shake_time = 0.02
+				}
+			}
+		}
+		clear(&event_q)
 
 		// handle level complete/next_level
 		if level_complete || next_level {

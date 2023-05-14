@@ -151,11 +151,8 @@ generate_texture :: proc(width, height: i32) -> Texture2D {
 	return tex
 }
 
-post_processor_update :: proc(p: ^PostProcessor, dt: f32, did_collide: bool) {
+post_processor_update :: proc(p: ^PostProcessor, dt: f32) {
 	p.shake_time -= dt
-	if did_collide {
-		p.shake_time = 0.05
-	}
 	p.shake_time = max(p.shake_time, 0)
 	p.shake = p.shake_time > 0
 }
