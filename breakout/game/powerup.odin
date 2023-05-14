@@ -62,7 +62,7 @@ powerups_destroy :: proc(p: ^Powerups) {
 powerup_spawn :: proc(p: ^Powerups, pos: glm.vec2) {
 	r := rand.float32(&p.rand)
 	if r > 0.5 {
-		r = 0.03
+		r = 0.05
 	}
 	// r *= 0.24
 	pu: Maybe(Powerup)

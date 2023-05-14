@@ -207,11 +207,19 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			if brick.destroyed {
 				continue
 			}
+			collide_type: CollideType = .SOLID_BLOCK
 			if !brick.is_solid {
+				collide_type = .BLOCK
 				level_complete = false
 			}
-			collide_info = check_collision_ball(ball.pos, ball.radius, brick.pos, brick.size)
-			if collide_info.collided {
+			collide_info = check_collision_ball(
+				ball.pos,
+				ball.radius,
+				brick.pos,
+				brick.size,
+				collide_type,
+			)
+			if collide_info.type != .NONE {
 				append(
 					&event_q,
 					EventCollide{type = .BRICK, pos = brick.pos, solid = brick.is_solid},
@@ -223,8 +231,14 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			}
 		}
 		if !ball_released && !ball.stuck {
-			collide_info = check_collision_ball(ball.pos, ball.radius, paddle.pos, paddle.size)
-			if collide_info.collided {
+			collide_info = check_collision_ball(
+				ball.pos,
+				ball.radius,
+				paddle.pos,
+				paddle.size,
+				.PADDLE,
+			)
+			if collide_info.type != .NONE {
 				append(&event_q, EventCollide{type = .PADDLE, pos = paddle.pos})
 				ball_handle_paddle_collision(&ball, &paddle, collide_info)
 			}

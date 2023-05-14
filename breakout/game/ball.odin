@@ -73,8 +73,15 @@ check_collision_rect :: proc(p1, s1, p2, s2: glm.vec2) -> bool {
 	return x_collide && y_collide
 }
 
+CollideType :: enum {
+	NONE,
+	WALL,
+	BLOCK,
+	SOLID_BLOCK,
+	PADDLE,
+}
 CollideInfo :: struct {
-	collided:   bool,
+	type:       CollideType,
 	dir:        Direction,
 	difference: glm.vec2,
 }
@@ -83,6 +90,7 @@ check_collision_ball :: proc(
 	ball_pos: glm.vec2,
 	radius: f32,
 	rect_pos, rect_size: glm.vec2,
+	type: CollideType,
 ) -> CollideInfo {
 	ball_center := ball_pos + radius
 	rect_half := rect_size * .5
@@ -92,9 +100,9 @@ check_collision_ball :: proc(
 	closest := rect_center + clamped
 	difference = closest - ball_center
 	if glm.length_vec2(difference) < radius {
-		return CollideInfo{true, vector_direction(difference), difference}
+		return CollideInfo{type, vector_direction(difference), difference}
 	} else {
-		return CollideInfo{false, .UP, {0, 0}}
+		return CollideInfo{.NONE, .UP, {0, 0}}
 	}
 }
 
@@ -120,9 +128,11 @@ vector_direction :: proc(target: glm.vec2) -> Direction {
 }
 
 ball_handle_collision :: proc(ball: ^Ball, info: CollideInfo) {
-	if !info.collided {
+	if info.type == .NONE || (ball.pass_through > 0 && info.type == .BLOCK) {
 		return
 	}
+	// TODO: add some randomness to avoid ball getting stuck
+	// ball.bounces += 1
 	if info.dir == .LEFT || info.dir == .RIGHT {
 		ball.velocity.x = -ball.velocity.x
 		overlap := ball.radius - abs(info.difference.x)
@@ -143,7 +153,7 @@ ball_handle_collision :: proc(ball: ^Ball, info: CollideInfo) {
 }
 
 ball_handle_paddle_collision :: proc(ball: ^Ball, paddle: ^Paddle, info: CollideInfo) {
-	if ball.stuck || !info.collided {
+	if ball.stuck || info.type == .NONE {
 		return
 	}
 	center_paddle := paddle.pos.x + (paddle.size.x * .5)
