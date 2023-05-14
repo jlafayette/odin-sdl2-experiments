@@ -81,7 +81,6 @@ particle_respawn :: proc(
 	particle.life = 1
 	particle.vel = source_vel * .1
 }
-import "core:fmt"
 
 particles_render :: proc(e: ^ParticleEmitter, program_id: u32, texture_id: u32, vao: u32) {
 	// gl.Enable(gl.BLEND) // doesn't seem to matter...
