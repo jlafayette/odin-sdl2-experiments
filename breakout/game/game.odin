@@ -255,7 +255,6 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 				powerups_handle_collision(&powerups, &paddle, pu_i)
 			}
 		}
-
 		// update particles
 		particle_update(&ball_sparks, dt, ball.pos, ball.velocity, ball.radius * .5)
 		// mouse_pos := get_mouse_pos(i32(game.window_width), i32(game.window_height))
@@ -322,16 +321,22 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 				fmt.eprintf("Error loading level %d\n", number)
 				break game_loop
 			}
-			paddle_reset(&paddle, game.window_width, game.window_height)
+			paddle_reset(&paddle)
 			ball_reset(&ball, paddle.pos, paddle.size)
+			clear(&powerups.data)
+			effects.confuse = false
+			effects.chaos = false
 		}
 		// handle game over
 		if game_over {
 			// TODO: make game over screen
 			// TODO: add lives and only reset level when they are out
 			game_level_reset(&level)
-			// paddle_reset(&paddle, game.window_width, game.window_height)
+			paddle_reset(&paddle)
 			ball_reset(&ball, paddle.pos, paddle.size)
+			clear(&powerups.data)
+			effects.confuse = false
+			effects.chaos = false
 		}
 
 		// render

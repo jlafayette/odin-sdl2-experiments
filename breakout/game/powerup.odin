@@ -61,33 +61,30 @@ powerups_destroy :: proc(p: ^Powerups) {
 
 powerup_spawn :: proc(p: ^Powerups, pos: glm.vec2) {
 	r := rand.float32(&p.rand)
-	if r > 0.5 {
-		r = 0.05
-	}
-	// r *= 0.24
+	r *= 0.25
 	pu: Maybe(Powerup)
 	switch r {
-	case 0.00 ..< 0.02:
+	case 0.00 ..< 0.01:
 		pu = Powerup {
 			type = .SPEED,
 		}
-	case 0.02 ..< 0.04:
+	case 0.01 ..< 0.02:
 		pu = Powerup {
 			type = .STICKY,
 		}
-	case 0.04 ..< 0.06:
+	case 0.02 ..< 0.03:
 		pu = Powerup {
 			type = .PASS_THROUGH,
 		}
-	case 0.06 ..< 0.08:
+	case 0.03 ..< 0.04:
 		pu = Powerup {
 			type = .PADDLE_SIZE_INCREASE,
 		}
-	case 0.08 ..< 0.10:
+	case 0.04 ..< 0.05:
 		pu = Powerup {
 			type = .CONFUSE,
 		}
-	case 0.10 ..< 0.12:
+	case 0.05 ..< 0.06:
 		pu = Powerup {
 			type = .CHAOS,
 		}

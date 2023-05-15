@@ -22,6 +22,8 @@ ball_init :: proc(ball: ^Ball, paddle_pos, paddle_size: glm.vec2) {
 }
 ball_reset :: proc(ball: ^Ball, paddle_pos, paddle_size: glm.vec2) {
 	ball.stuck = true
+	ball.sticky = 0
+	ball.pass_through = 0
 	ball.velocity = INIT_BALL_VELOCITY
 	ball.stuck_offset.x = (paddle_size.x * .5) - ball.radius
 	ball.stuck_offset.y = -ball.size.y
