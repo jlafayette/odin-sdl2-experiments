@@ -15,7 +15,7 @@ import "vendor:sdl2"
 import gl "vendor:OpenGL"
 import "vendor:stb/image"
 
-DEBUG_FPS :: true
+DEBUG_FPS :: false
 
 Game :: struct {
 	state:         GameState,
@@ -274,7 +274,6 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 				case .POWERUP:
 				}
 			case EventPowerupActivated:
-				fmt.printf("Activated powerup: %v\n", e.type)
 				switch e.type {
 				case .SPEED:
 					ball.velocity *= 1.2
@@ -291,14 +290,12 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 					effects.chaos = true
 				}
 			case EventPowerupDeactivated:
-				fmt.printf("Deactivated powerup: %v\n", e.type)
 				switch e.type {
 				case .SPEED:
 					ball.velocity /= 1.2
 				case .STICKY:
 					ball.sticky -= 1
 					paddle.sticky = ball.sticky > 0
-					fmt.printf("ball.sticky: %d, paddle sticky: %t\n", ball.sticky, paddle.sticky)
 				case .PASS_THROUGH:
 					ball.pass_through -= 1
 				case .PADDLE_SIZE_INCREASE:

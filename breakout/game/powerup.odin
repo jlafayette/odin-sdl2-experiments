@@ -96,8 +96,6 @@ powerup_spawn :: proc(p: ^Powerups, pos: glm.vec2) {
 		powerup.size = {100, 25}
 		powerup.velocity = {0, 100}
 		append(&p.data, powerup)
-		fmt.printf("spawned powerup: %v  ", powerup.type)
-		powerup_report(p)
 	}
 }
 powerup_report :: proc(p: ^Powerups) {
