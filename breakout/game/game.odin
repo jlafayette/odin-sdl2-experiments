@@ -12,6 +12,7 @@ import "core:strings"
 import glm "core:math/linalg/glsl"
 
 import "vendor:sdl2"
+import "vendor:sdl2/mixer"
 import gl "vendor:OpenGL"
 import "vendor:stb/image"
 
@@ -32,6 +33,12 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	game_start_tick := time.tick_now()
 	// Init
 	game := Game{.MENU, int(window_width), int(window_height)}
+
+	sound_ok := sound_engine_init()
+	if !sound_ok {
+		return
+	}
+	defer sound_engine_destroy()
 
 	sdl2.GL_SetAttribute(.CONTEXT_PROFILE_MASK, i32(sdl2.GLprofile.CORE))
 	sdl2.GL_SetAttribute(.CONTEXT_MAJOR_VERSION, 3)
@@ -269,9 +276,16 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 				case .BRICK:
 					effects.shake_time = 0.05
 					if !e.solid do powerup_spawn(&powerups, e.pos)
+					if e.solid {
+						sound_play(.SOLID)
+					} else {
+						sound_play(.BLEEP)
+					}
 				case .PADDLE:
+					sound_play(Sound.BLOOP)
 					effects.shake_time = 0.02
 				case .POWERUP:
+					sound_play(.POWERUP)
 				}
 			case EventPowerupActivated:
 				switch e.type {
