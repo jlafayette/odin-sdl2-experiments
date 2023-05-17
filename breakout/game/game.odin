@@ -120,6 +120,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 
 	powerups: Powerups
 	assert(powerups_init(&powerups, sprite_program, projection), "Failed to init powerups")
+	defer powerups_destroy(&powerups)
 
 	// effects
 	effects: PostProcessor

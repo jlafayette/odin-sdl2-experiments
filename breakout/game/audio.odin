@@ -59,6 +59,9 @@ sound_engine_init :: proc() -> bool {
 	return true
 }
 sound_engine_destroy :: proc() {
+	for items in _sounds {
+		delete(items)
+	}
 	/*
 	ma.engine_uninit(&engine)
 	for _, i in sounds {
