@@ -7,6 +7,7 @@ EventCollideType :: enum {
 	PADDLE,
 	BRICK,
 	POWERUP,
+	WALL,
 }
 
 EventCollide :: struct {

@@ -54,13 +54,16 @@ ball_update :: proc(
 	if ball.pos.x <= 0 {
 		ball.velocity.x = -ball.velocity.x
 		ball.pos.x = 0
+		append(&event_q, EventCollide{type = .WALL, pos = ball.pos})
 	} else if ball.pos.x + ball.size.x >= f32(window_width) {
 		ball.velocity.x = -ball.velocity.x
 		ball.pos.x = f32(window_width) - ball.size.x
+		append(&event_q, EventCollide{type = .WALL, pos = ball.pos})
 	}
 	if ball.pos.y <= 0 {
 		ball.velocity.y = -ball.velocity.y
 		ball.pos.y = 0
+		append(&event_q, EventCollide{type = .WALL, pos = ball.pos})
 	}
 	// this loses the game
 	if ball.pos.y - ball.size.y >= f32(window_height) {

@@ -286,6 +286,8 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 					effects.shake_time = 0.02
 				case .POWERUP:
 					sound_play(.POWERUP)
+				case .WALL:
+					sound_play(.SOLID)
 				}
 			case EventPowerupActivated:
 				switch e.type {

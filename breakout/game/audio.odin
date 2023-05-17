@@ -12,15 +12,15 @@ Sound :: enum {
 	SOLID,
 }
 
-_Sound :: struct {
+_SoundTime :: struct {
 	sound:      ma.sound,
 	start_time: time.Time,
 }
 
 @(private = "file")
-_sounds: [5][]_Sound
+_sounds: [5][]_SoundTime
 @(private = "file")
-_chan_per_sound: [5]int = {2, 2, 1, 1, 2}
+_chan_per_sound: [5]int = {4, 2, 1, 1, 2}
 @(private = "file")
 _sound_files: [5]cstring = {
 	"breakout/audio/bleep.mp3",
@@ -39,7 +39,7 @@ sound_engine_init :: proc() -> bool {
 		return false
 	}
 	for file, i in _sound_files {
-		_sounds[i] = make([]_Sound, _chan_per_sound[i])
+		_sounds[i] = make([]_SoundTime, _chan_per_sound[i])
 		for j := 0; j < _chan_per_sound[i]; j += 1 {
 			result = ma.sound_init_from_file(
 				&_engine,
@@ -70,7 +70,7 @@ sound_engine_destroy :: proc() {
 sound_play :: proc(sound: Sound) {
 	result: ma.result
 	for _, i in _sounds[sound] {
-		s: ^_Sound = &_sounds[sound][i]
+		s: ^_SoundTime = &_sounds[sound][i]
 		if !ma.sound_is_playing(&s.sound) {
 			result = ma.sound_start(&s.sound)
 			s.start_time = time.now()
@@ -80,10 +80,10 @@ sound_play :: proc(sound: Sound) {
 	}
 	now := time.now()
 	max: time.Duration = 0
-	max_s: ^_Sound = &_sounds[sound][0]
+	max_s: ^_SoundTime = &_sounds[sound][0]
 	max_i: int = 0
 	for _, i in _sounds[sound] {
-		s: ^_Sound = &_sounds[sound][i]
+		s: ^_SoundTime = &_sounds[sound][i]
 		since := time.diff(s.start_time, now)
 		if since > max {
 			max = since
