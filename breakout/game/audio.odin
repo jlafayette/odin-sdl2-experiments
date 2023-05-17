@@ -1,5 +1,6 @@
 package game
 
+import "core:time"
 import "core:fmt"
 import ma "vendor:miniaudio"
 
@@ -10,10 +11,18 @@ Sound :: enum {
 	POWERUP,
 	SOLID,
 }
+
+_Sound :: struct {
+	sound:      ma.sound,
+	start_time: time.Time,
+}
+
 @(private = "file")
-sounds: [5]ma.sound
+_sounds: [5][]_Sound
 @(private = "file")
-sound_files: [5]cstring = {
+_chan_per_sound: [5]int = {2, 2, 1, 1, 2}
+@(private = "file")
+_sound_files: [5]cstring = {
 	"breakout/audio/bleep.mp3",
 	"breakout/audio/bloop.wav",
 	"breakout/audio/breakout.mp3",
@@ -21,29 +30,32 @@ sound_files: [5]cstring = {
 	"breakout/audio/solid.wav",
 }
 @(private = "file")
-engine: ma.engine
+_engine: ma.engine
 
 sound_engine_init :: proc() -> bool {
-	result := ma.engine_init(nil, &engine)
+	result := ma.engine_init(nil, &_engine)
 	if result != ma.result.SUCCESS {
 		fmt.eprintf("Unable to initialize audio engine: %v\n", result)
 		return false
 	}
-	for file, i in sound_files {
-		result = ma.sound_init_from_file(
-			&engine,
-			file,
-			cast(u32)ma.sound_flags.DECODE,
-			nil,
-			nil,
-			&sounds[i],
-		)
-		if result != ma.result.SUCCESS {
-			fmt.eprintf("Error loading %s: %v\n", file, result)
-			return false
+	for file, i in _sound_files {
+		_sounds[i] = make([]_Sound, _chan_per_sound[i])
+		for j := 0; j < _chan_per_sound[i]; j += 1 {
+			result = ma.sound_init_from_file(
+				&_engine,
+				file,
+				cast(u32)ma.sound_flags.DECODE,
+				nil,
+				nil,
+				&_sounds[i][j].sound,
+			)
+			if result != ma.result.SUCCESS {
+				fmt.eprintf("Error loading %s: %v\n", file, result)
+				return false
+			}
+
 		}
 	}
-
 	return true
 }
 sound_engine_destroy :: proc() {
@@ -56,13 +68,31 @@ sound_engine_destroy :: proc() {
 }
 
 sound_play :: proc(sound: Sound) {
-	s: ^ma.sound = &sounds[sound]
 	result: ma.result
-	if ma.sound_is_playing(s) {
-		// could add multiple sounds to play more than one at once
-		result = ma.sound_seek_to_pcm_frame(s, 0)
-	} else {
-		result = ma.sound_start(s)
+	for _, i in _sounds[sound] {
+		s: ^_Sound = &_sounds[sound][i]
+		if !ma.sound_is_playing(&s.sound) {
+			result = ma.sound_start(&s.sound)
+			s.start_time = time.now()
+			fmt.printf("started %v on chan %d\n", sound, i)
+			return
+		}
 	}
-	// fmt.printf("started %v with result %v\n", sound, result)
+	now := time.now()
+	max: time.Duration = 0
+	max_s: ^_Sound = &_sounds[sound][0]
+	max_i: int = 0
+	for _, i in _sounds[sound] {
+		s: ^_Sound = &_sounds[sound][i]
+		since := time.diff(s.start_time, now)
+		if since > max {
+			max = since
+			max_s = s
+			max_i = i
+		}
+	}
+	result = ma.sound_seek_to_pcm_frame(&max_s.sound, 0)
+	result = ma.sound_start(&max_s.sound)
+	max_s.start_time = now
+	fmt.printf("(FULL) started %v on chan %d\n", sound, max_i)
 }
