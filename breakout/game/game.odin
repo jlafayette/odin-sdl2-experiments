@@ -4,6 +4,7 @@ import "core:c"
 import "core:fmt"
 import "core:mem"
 import "core:math"
+import "core:math/rand"
 import "core:os"
 import "core:runtime"
 import "core:time"
@@ -18,21 +19,26 @@ import "vendor:stb/image"
 
 DEBUG_FPS :: false
 
-Game :: struct {
-	state:         GameState,
-	window_width:  int,
-	window_height: int,
-}
 GameState :: enum {
 	ACTIVE,
 	MENU,
 	WIN,
 }
+Game :: struct {
+	state:         GameState,
+	window_width:  int,
+	window_height: int,
+	rand:          rand.Rand,
+}
+game_init :: proc(g: ^Game) {
+	rand.init(&g.rand, 214)
+}
 
 run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32) {
 	game_start_tick := time.tick_now()
-	// Init
-	game := Game{.MENU, int(window_width), int(window_height)}
+
+	game := Game{.MENU, int(window_width), int(window_height), rand.Rand{}}
+	game_init(&game)
 
 	sound_ok := sound_engine_init()
 	if !sound_ok {
@@ -129,6 +135,9 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	// events
 	assert(event_q_init(), "Failed to init event queue")
 	defer event_q_destroy()
+
+	// start music
+	music_play(.BREAKOUT)
 
 	// timing stuff
 	fps: f64 = 0
@@ -273,22 +282,30 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			switch e in event {
 			case EventCollide:
 				effects.shake = true
+				pan: f32 = e.pos.x / f32(game.window_width)
+				pan = (pan * 1.8) - .9
+				pitch := rand.float32(&game.rand)
 				switch e.type {
 				case .BRICK:
 					effects.shake_time = 0.05
 					if !e.solid do powerup_spawn(&powerups, e.pos)
 					if e.solid {
-						sound_play(.SOLID)
+						sound_play(.SOLID, 1, pan, (pitch * .2) + .8)
 					} else {
-						sound_play(.BLEEP)
+						sound_play(.BLEEP, 1, pan, (pitch * .2) + .85)
 					}
 				case .PADDLE:
-					sound_play(Sound.BLOOP)
+					if paddle.sticky {
+						pitch = 0.5
+					} else {
+						pitch = 1
+					}
+					sound_play(Sound.BLOOP, 1, pan, pitch)
 					effects.shake_time = 0.02
 				case .POWERUP:
-					sound_play(.POWERUP)
+					sound_play(.POWERUP, 1, pan, 1)
 				case .WALL:
-					sound_play(.SOLID)
+					sound_play(.SOLID, 1, pan, (pitch * .1) + .95)
 				}
 			case EventPowerupActivated:
 				switch e.type {
