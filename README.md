@@ -29,6 +29,7 @@ odin run .
 ## Running standalone examples
 
 ```sh
+odin run breakout/breakout.odin -file -o:speed
 odin run dynamic_text/dynamic_text.odin -file
 odin run shader/shader.odin -file
 odin run ui/ui.odin -file
