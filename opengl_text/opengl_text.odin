@@ -251,14 +251,7 @@ text_get_size :: proc(w: ^Writer, text: string) -> glm.vec2 {
 	return size
 }
 
-Game :: struct {
-	window_width:  int,
-	window_height: int,
-}
-
 run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32) {
-	game := Game{int(window_width), int(window_height)}
-
 	sdl2.GL_SetAttribute(.CONTEXT_PROFILE_MASK, i32(sdl2.GLprofile.CORE))
 	sdl2.GL_SetAttribute(.CONTEXT_MAJOR_VERSION, 3)
 	sdl2.GL_SetAttribute(.CONTEXT_MINOR_VERSION, 3)
@@ -309,19 +302,20 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 
 		// render
 		gl.Viewport(0, 0, window_width, window_height)
-		gl.ClearColor(.5, .5, .5, 1)
+		gl.ClearColor(0, .1, .2, 1)
 		gl.Clear(gl.COLOR_BUFFER_BIT)
-
-		// write_text(&writer, "hello?", projection, {100, 100}, 1, {1, 0, 1})
-		write_text(&writer, "Xxgxph", projection, {0, 0}, {1, 1, 1})
-		write_text(&writer, "Josh is the greatest!!", projection, {200, 700}, {1, 1, 1})
-		write_text(&writer16, "Josh is the greatest!!", projection, {200, 800}, {1, 1, 1})
+		col1: glm.vec3 = {.9, .4, .6}
+		col2: glm.vec3 = {.1, .7, 1}
+		write_text(&writer, "Xxgxph", projection, {0, 0}, col1)
+		write_text(&writer, "Josh is the greatest!!", projection, {200, 700}, col1)
+		write_text(&writer16, "Josh is the greatest!!", projection, {200, 800}, col2)
+		write_text(&writer16, "JOSH IS THE GREATEST!!", projection, {200, 820}, col2)
 		{
 			text := "XxgxphxX"
 			size := text_get_size(&writer, text)
-			upper_right := glm.vec2{f32(game.window_width), f32(game.window_height)}
+			upper_right := glm.vec2{f32(window_width), f32(window_height)}
 			pos := upper_right - size
-			write_text(&writer, text, projection, pos, {1, 1, 1})
+			write_text(&writer, text, projection, pos, col1)
 		}
 
 		gl_report_error()
