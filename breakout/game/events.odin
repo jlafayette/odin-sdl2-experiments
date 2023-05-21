@@ -9,12 +9,12 @@ EventCollideType :: enum {
 	POWERUP,
 	WALL,
 }
-
 EventCollide :: struct {
 	type:  EventCollideType,
 	pos:   glm.vec2,
 	solid: bool,
 }
+
 EventPowerupActivated :: struct {
 	type: PowerupType,
 }
@@ -22,10 +22,15 @@ EventPowerupDeactivated :: struct {
 	type: PowerupType,
 }
 
+EventBallOut :: struct {}
+EventLevelComplete :: struct {}
+
 Event :: union {
 	EventCollide,
 	EventPowerupActivated,
 	EventPowerupDeactivated,
+	EventBallOut,
+	EventLevelComplete,
 }
 
 event_q: [dynamic]Event

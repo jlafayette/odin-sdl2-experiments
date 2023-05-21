@@ -37,18 +37,13 @@ ball_stuck_update :: proc(ball: ^Ball, paddle_pos: glm.vec2) {
 	ball.pos = paddle_pos + ball.stuck_offset
 }
 
-ball_update :: proc(
-	ball: ^Ball,
-	dt: f32,
-	window_width, window_height: int,
-	ball_released: bool,
-) -> bool {
+ball_update :: proc(ball: ^Ball, dt: f32, window_width, window_height: int, ball_released: bool) {
 	if ball_released {
 		ball.stuck = false
 		ball.stuck_offset = {0, 0}
 	}
 	if ball.stuck {
-		return false
+		return
 	}
 	ball.pos += ball.velocity * dt
 	if ball.pos.x <= 0 {
@@ -67,9 +62,8 @@ ball_update :: proc(
 	}
 	// this loses the game
 	if ball.pos.y - ball.size.y >= f32(window_height) {
-		return true
+		append(&event_q, EventBallOut{})
 	}
-	return false
 }
 
 check_collision_rect :: proc(p1, s1, p2, s2: glm.vec2) -> bool {

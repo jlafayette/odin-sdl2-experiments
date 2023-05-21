@@ -26,19 +26,31 @@ GameState :: enum {
 }
 Game :: struct {
 	state:         GameState,
+	lives:         int,
 	window_width:  int,
 	window_height: int,
 	rand:          rand.Rand,
+	level:         GameLevel,
 }
-game_init :: proc(g: ^Game) {
+game_init :: proc(g: ^Game, width, height: int) -> bool {
+	g.state = .ACTIVE // TODO: start in main menu
+	g.lives = 3
+	g.window_width = width
+	g.window_height = height
 	rand.init(&g.rand, 214)
+	ok := game_level_load(&g.level, 1, width, height / 2)
+	return ok
+}
+game_destroy :: proc(g: ^Game) {
+	defer game_level_destroy(&g.level)
 }
 
 run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32) {
 	game_start_tick := time.tick_now()
 
-	game := Game{.MENU, int(window_width), int(window_height), rand.Rand{}}
-	game_init(&game)
+	game: Game
+	game_ok := game_init(&game, int(window_width), int(window_height))
+	assert(game_ok)
 
 	sound_ok := sound_engine_init()
 	if !sound_ok {
@@ -112,11 +124,10 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	// particle_emitter_init(&mouse_sparks, 123)
 	// defer particle_emitter_destroy(&mouse_sparks)
 
-	level: GameLevel
-	load_ok := game_level_load(&level, 1, game.window_width, game.window_height / 2)
-	fmt.printf("w: %v, h: %v\n", game.window_width, game.window_height)
-	assert(load_ok)
-	defer game_level_destroy(&level)
+	lives_writer: Writer
+	writer_init(&lives_writer, TERMINAL_TTF, 16, projection)
+	defer writer_destroy(&lives_writer)
+
 
 	paddle: Paddle
 	paddle_init(&paddle, game.window_width, game.window_height)
@@ -137,7 +148,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	defer event_q_destroy()
 
 	// start music
-	music_play(.BREAKOUT)
+	// music_play(.BREAKOUT)
 
 	// timing stuff
 	fps: f64 = 0
@@ -185,7 +196,6 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 				_sec_tick = time.tick_now()
 				_frames = 0
 			}
-
 		}
 
 		// process input
@@ -214,20 +224,20 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		is_left := keyboard_state[sdl2.Scancode.A] > 0 || keyboard_state[sdl2.Scancode.LEFT] > 0
 		is_right := keyboard_state[sdl2.Scancode.D] > 0 || keyboard_state[sdl2.Scancode.RIGHT] > 0
 		paddle_update(&paddle, dt, game.window_width, is_left, is_right)
-		game_over := ball_update(&ball, dt, game.window_width, game.window_height, ball_released)
+		ball_update(&ball, dt, game.window_width, game.window_height, ball_released)
 		if ball.stuck {
 			ball_stuck_update(&ball, paddle.pos)
 		}
 		collide_info: CollideInfo
-		level_complete := true
-		for brick, brick_i in level.bricks {
+		no_blocks := true
+		for brick, brick_i in game.level.bricks {
 			if brick.destroyed {
 				continue
 			}
 			collide_type: CollideType = .SOLID_BLOCK
 			if !brick.is_solid {
 				collide_type = .BLOCK
-				level_complete = false
+				no_blocks = false
 			}
 			collide_info = check_collision_ball(
 				ball.pos,
@@ -243,9 +253,12 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 				)
 				ball_handle_collision(&ball, collide_info)
 				if !brick.is_solid {
-					level.bricks[brick_i].destroyed = true
+					game.level.bricks[brick_i].destroyed = true
 				}
 			}
+		}
+		if no_blocks {
+			append(&event_q, EventLevelComplete{})
 		}
 		if !ball_released && !ball.stuck {
 			collide_info = check_collision_ball(
@@ -339,36 +352,41 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 				case .CHAOS:
 					effects.chaos = false
 				}
+			case EventLevelComplete:
+				number := game.level.number + 1
+				load_ok := game_level_load(
+					&game.level,
+					number,
+					game.window_width,
+					game.window_height / 2,
+				)
+				// TODO: make game compeleted screen
+				if !load_ok {
+					fmt.eprintf("Error loading level %d\n", number)
+					break game_loop
+				}
+				paddle_reset(&paddle)
+				ball_reset(&ball, paddle.pos, paddle.size)
+				clear(&powerups.data)
+				effects.confuse = false
+				effects.chaos = false
+			case EventBallOut:
+				fmt.println("EventBallOut")
+				game.lives -= 1
+				if game.lives <= 0 {
+					// TODO: make game over screen
+					game.lives = 3
+					game_level_reset(&game.level)
+					paddle_reset(&paddle)
+					clear(&powerups.data)
+				}
+				ball_reset(&ball, paddle.pos, paddle.size)
+				effects.confuse = false
+				effects.chaos = false
 			}
 		}
 		clear(&event_q)
 
-		// handle level complete/next_level
-		if level_complete || next_level {
-			number := level.number + 1
-			load_ok = game_level_load(&level, number, game.window_width, game.window_height / 2)
-			// TODO: make game compeleted screen
-			if !load_ok {
-				fmt.eprintf("Error loading level %d\n", number)
-				break game_loop
-			}
-			paddle_reset(&paddle)
-			ball_reset(&ball, paddle.pos, paddle.size)
-			clear(&powerups.data)
-			effects.confuse = false
-			effects.chaos = false
-		}
-		// handle game over
-		if game_over {
-			// TODO: make game over screen
-			// TODO: add lives and only reset level when they are out
-			game_level_reset(&level)
-			paddle_reset(&paddle)
-			ball_reset(&ball, paddle.pos, paddle.size)
-			clear(&powerups.data)
-			effects.confuse = false
-			effects.chaos = false
-		}
 
 		// render
 		gl.Viewport(0, 0, window_width, window_height)
@@ -390,7 +408,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			{1, 1, 1},
 		)
 		// draw level
-		for brick in level.bricks {
+		for brick in game.level.bricks {
 			if brick.destroyed {
 				continue
 			}
@@ -420,16 +438,6 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		)
 		// draw powerups
 		powerups_render(&powerups, sprite_program, buffers.vao)
-		// debug stuff
-		draw_sprite(
-			sprite_program,
-			brick_texture.id,
-			buffers.vao,
-			{15, 15},
-			{10, 10 * cast(f32)ball.sticky},
-			0,
-			{0, 1, 1},
-		)
 		// draw particles
 		particles_render(&ball_sparks, particle_program, particle_texture.id, buffers.vao)
 		// draw ball
@@ -449,6 +457,12 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		// particles_render(&mouse_sparks, particle_program, particle_texture.id, buffers.vao)
 		post_processor_end_render(&effects)
 		post_processor_render(&effects, f32(game_sec_elapsed))
+
+		sb: strings.Builder
+		strings.builder_init_len(&sb, 10, context.temp_allocator)
+		fmt.sbprintf(&sb, "Lives: %d", game.lives)
+		write_text(&lives_writer, strings.to_string(sb), {10, 10}, {1, 1, 1})
+
 		gl_report_error()
 		sdl2.GL_SwapWindow(window)
 
@@ -460,6 +474,8 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		duration = time.tick_since(start_tick)
 		ms_elapsed = f64(time.duration_milliseconds(duration))
 		fps = 1000 / ms_elapsed
+
+		free_all(context.temp_allocator)
 	}
 }
 

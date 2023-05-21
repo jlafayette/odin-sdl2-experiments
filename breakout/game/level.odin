@@ -14,7 +14,7 @@ Brick :: struct {
 }
 
 GameLevel :: struct {
-	number : int
+	number:    int,
 	bricks:    [dynamic]Brick,
 	row_len:   int,
 	row_count: int,
