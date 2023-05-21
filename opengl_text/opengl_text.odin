@@ -192,8 +192,6 @@ write_text :: proc(
 	gl.BindVertexArray(w.vao);defer gl.BindVertexArray(0)
 	defer gl.BindTexture(gl.TEXTURE_2D, 0)
 
-	scale: f32 = 1
-
 	// iterate through all characters
 	x := pos.x
 	ch: Character
@@ -201,11 +199,11 @@ write_text :: proc(
 	for c, i in text {
 		if ch, ok = w.chars[c]; !ok do continue
 
-		xpos: f32 = x + f32(ch.bearing.x) * scale
-		ypos: f32 = pos.y - f32(ch.bearing.y) * scale - f32(ch.size.y) * scale
+		xpos: f32 = x + f32(ch.bearing.x)
+		ypos: f32 = pos.y - f32(ch.bearing.y) - f32(ch.size.y)
 		ypos -= f32(w.descent) // raise text so 0,0 (bottom,left) still shows the entire text
-		wi: f32 = f32(ch.size.x) * scale
-		h: f32 = f32(ch.size.y) * scale
+		wi: f32 = f32(ch.size.x)
+		h: f32 = f32(ch.size.y)
 		vertices: [6]Vertex = {
 			{{xpos, ypos + h}, {0, 0}},
 			{{xpos, ypos}, {0, 1}},
@@ -399,11 +397,4 @@ gl_report_error :: proc() {
 	if e != gl.NO_ERROR {
 		fmt.println("OpenGL Error:", e)
 	}
-}
-
-// Useful for spawning particles at mouse position for testing
-get_mouse_pos :: proc(window_width, window_height: i32) -> [2]f32 {
-	cx, cy: c.int
-	sdl2.GetMouseState(&cx, &cy)
-	return {f32(cx), f32(cy)}
 }
