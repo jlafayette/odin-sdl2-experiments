@@ -196,12 +196,14 @@ write_text :: proc(
 
 	// iterate through all characters
 	x := pos.x
+	ch: Character
+	ok: bool
 	for c, i in text {
-		ch, ok := w.chars[c]
-		if !ok do continue
+		if ch, ok = w.chars[c]; !ok do continue
 
 		xpos: f32 = x + f32(ch.bearing.x) * scale
 		ypos: f32 = pos.y - f32(ch.bearing.y) * scale - f32(ch.size.y) * scale
+		ypos -= f32(w.descent) // raise text so 0,0 (bottom,left) still shows the entire text
 		wi: f32 = f32(ch.size.x) * scale
 		h: f32 = f32(ch.size.y) * scale
 		vertices: [6]Vertex = {
@@ -231,6 +233,25 @@ write_text :: proc(
 		}
 	}
 }
+text_get_size :: proc(w: ^Writer, text: string) -> glm.vec2 {
+	size: glm.vec2
+	size.y = f32(w.ascent + math.abs(w.descent))
+	ch: Character
+	ok: bool
+	for c, i in text {
+		if ch, ok = w.chars[c]; !ok do continue
+		if i < len(text) - 1 {
+			size.x += f32(ch.advance) * w.scale
+			next_i := text[i + 1]
+			kern: i32
+			kern = tt.GetCodepointKernAdvance(&w.info, rune(i), rune(next_i))
+			size.x += math.round(f32(kern) * w.scale)
+		} else {
+			size.x += f32(ch.size.x)
+		}
+	}
+	return size
+}
 
 Game :: struct {
 	window_width:  int,
@@ -247,7 +268,10 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	defer sdl2.GL_DeleteContext(gl_context)
 	gl.load_up_to(3, 3, sdl2.gl_set_proc_address)
 
+	// 0,0 is upper left (currently text is upside down using this projection)
 	// projection: glm.mat4 = glm.mat4Ortho3d(0, f32(window_width), f32(window_height), 0, -1.0, 1)
+
+	// 0,0 is lower left
 	projection: glm.mat4 = glm.mat4Ortho3d(0, f32(window_width), 0, f32(window_height), -1.0, 1)
 
 	writer: Writer
@@ -291,17 +315,16 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		gl.Clear(gl.COLOR_BUFFER_BIT)
 
 		// write_text(&writer, "hello?", projection, {100, 100}, 1, {1, 0, 1})
-		write_text(&writer, "abgly", projection, {300, 500}, {1, 1, 1})
+		write_text(&writer, "Xxgxph", projection, {0, 0}, {1, 1, 1})
 		write_text(&writer, "Josh is the greatest!!", projection, {200, 700}, {1, 1, 1})
 		write_text(&writer16, "Josh is the greatest!!", projection, {200, 800}, {1, 1, 1})
-		// write_text(
-		// 	&writer,
-		// 	"hello?",
-		// 	projection,
-		// 	{f32(game.window_width) - 100, f32(game.window_height) - 100},
-		// 	1,
-		// 	{1, 1, 0},
-		// )
+		{
+			text := "XxgxphxX"
+			size := text_get_size(&writer, text)
+			upper_right := glm.vec2{f32(game.window_width), f32(game.window_height)}
+			pos := upper_right - size
+			write_text(&writer, text, projection, pos, {1, 1, 1})
+		}
 
 		gl_report_error()
 		sdl2.GL_SwapWindow(window)
