@@ -37,11 +37,7 @@ ball_stuck_update :: proc(ball: ^Ball, paddle_pos: glm.vec2) {
 	ball.pos = paddle_pos + ball.stuck_offset
 }
 
-ball_update :: proc(ball: ^Ball, dt: f32, window_width, window_height: int, ball_released: bool) {
-	if ball_released {
-		ball.stuck = false
-		ball.stuck_offset = {0, 0}
-	}
+ball_update :: proc(ball: ^Ball, dt: f32, window_width, window_height: int) {
 	if ball.stuck {
 		return
 	}

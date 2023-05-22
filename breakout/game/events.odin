@@ -24,6 +24,7 @@ EventPowerupDeactivated :: struct {
 
 EventBallOut :: struct {}
 EventLevelComplete :: struct {}
+EventBallReleased :: struct {}
 
 Event :: union {
 	EventCollide,
@@ -31,6 +32,7 @@ Event :: union {
 	EventPowerupDeactivated,
 	EventBallOut,
 	EventLevelComplete,
+	EventBallReleased,
 }
 
 event_q: [dynamic]Event

@@ -31,6 +31,8 @@ Game :: struct {
 	window_height: int,
 	rand:          rand.Rand,
 	level:         GameLevel,
+	is_left:       bool,
+	is_right:      bool,
 }
 game_init :: proc(g: ^Game, width, height: int) -> bool {
 	g.state = .ACTIVE // TODO: start in main menu
@@ -198,33 +200,16 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			}
 		}
 
-		// process input
-		ball_released := false
-		next_level := false
-		event: sdl2.Event
-		for sdl2.PollEvent(&event) {
-			#partial switch event.type {
-			case .QUIT:
-				break game_loop
-			case .KEYUP:
-				if event.key.keysym.sym == .ESCAPE {
-					sdl2.PushEvent(&sdl2.Event{type = .QUIT})
-				}
-			case .KEYDOWN:
-				#partial switch event.key.keysym.sym {
-				case .SPACE:
-					ball_released = true
-				case .X:
-					next_level = true
-				}
-			}
+		exit := game_handle_inputs(&game)
+		if exit {
+			break game_loop
 		}
-		numkeys: c.int
-		keyboard_state := sdl2.GetKeyboardState(&numkeys)
-		is_left := keyboard_state[sdl2.Scancode.A] > 0 || keyboard_state[sdl2.Scancode.LEFT] > 0
-		is_right := keyboard_state[sdl2.Scancode.D] > 0 || keyboard_state[sdl2.Scancode.RIGHT] > 0
-		paddle_update(&paddle, dt, game.window_width, is_left, is_right)
-		ball_update(&ball, dt, game.window_width, game.window_height, ball_released)
+
+		// game_update(&game)
+		// game_draw(&game)
+
+		paddle_update(&paddle, dt, game.window_width, game.is_left, game.is_right)
+		ball_update(&ball, dt, game.window_width, game.window_height)
 		if ball.stuck {
 			ball_stuck_update(&ball, paddle.pos)
 		}
@@ -260,7 +245,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		if no_blocks {
 			append(&event_q, EventLevelComplete{})
 		}
-		if !ball_released && !ball.stuck {
+		if !ball.stuck {
 			collide_info = check_collision_ball(
 				ball.pos,
 				ball.radius,
@@ -383,10 +368,12 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 				ball_reset(&ball, paddle.pos, paddle.size)
 				effects.confuse = false
 				effects.chaos = false
+			case EventBallReleased:
+				ball.stuck = false
+				ball.stuck_offset = {0, 0}
 			}
 		}
 		clear(&event_q)
-
 
 		// render
 		gl.Viewport(0, 0, window_width, window_height)
