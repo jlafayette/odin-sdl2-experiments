@@ -23,15 +23,18 @@ PostProcessor :: struct {
 	shake:      bool,
 	shake_time: f32,
 }
-post_processor_init :: proc(
-	p: ^PostProcessor,
-	program_id: u32,
-	window_width: i32,
-	window_height: i32,
-) -> bool {
+post_processor_init :: proc(p: ^PostProcessor, window_width: i32, window_height: i32) -> bool {
+	program_id, ok := gl.load_shaders_source(
+		postprocess_vertex_source,
+		postprocess_fragment_source,
+	)
+	if !ok {
+		fmt.eprintln("Failed to create GLSL program for effects")
+		return false
+	}
+	p.program_id = program_id
 	p.width = window_width
 	p.height = window_height
-	p.program_id = program_id
 	gl.GenFramebuffers(1, &p.msfbo)
 	gl.GenFramebuffers(1, &p.fbo)
 	gl.GenRenderbuffers(1, &p.rbo)
@@ -121,6 +124,9 @@ post_processor_init :: proc(
 	gl.Uniform1fv(gl.GetUniformLocation(program_id, "blur_kernel"), 9, &blur_kernel[0])
 
 	return true
+}
+post_processor_destroy :: proc(p: ^PostProcessor) {
+	gl.DeleteProgram(p.program_id)
 }
 @(private = "file")
 generate_texture :: proc(width, height: i32) -> Texture2D {

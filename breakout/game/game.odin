@@ -25,14 +25,22 @@ GameState :: enum {
 	WIN,
 }
 Game :: struct {
-	state:         GameState,
-	lives:         int,
-	window_width:  int,
-	window_height: int,
-	rand:          rand.Rand,
-	level:         GameLevel,
-	is_left:       bool,
-	is_right:      bool,
+	state:            GameState,
+	lives:            int,
+	window_width:     int,
+	window_height:    int,
+	rand:             rand.Rand,
+	level:            GameLevel,
+	is_left:          bool,
+	is_right:         bool,
+	ball:             Ball,
+	paddle:           Paddle,
+	effects:          PostProcessor,
+	ball_sparks:      ParticleEmitter,
+	powerups:         Powerups,
+	sprite_program:   u32,
+	particle_program: u32,
+	projection:       glm.mat4,
 }
 game_init :: proc(g: ^Game, width, height: int) -> bool {
 	g.state = .ACTIVE // TODO: start in main menu
@@ -41,14 +49,55 @@ game_init :: proc(g: ^Game, width, height: int) -> bool {
 	g.window_height = height
 	rand.init(&g.rand, 214)
 	ok := game_level_load(&g.level, 1, width, height / 2)
+	if !ok do return false
+	paddle_init(&g.paddle, width, height)
+	ball_init(&g.ball, g.paddle.pos, g.paddle.size)
+
+	effects: PostProcessor
+	ok = post_processor_init(&effects, i32(g.window_width), i32(g.window_height))
+	assert(ok)
+	g.effects = effects
+
+	particle_emitter_init(&g.ball_sparks, 123)
+
+	g.projection = glm.mat4Ortho3d(0, f32(width), f32(height), 0, -1.0, 1)
+	g.sprite_program, ok = gl.load_shaders_source(sprite_vertex_source, sprite_fragment_source)
+	if !ok {
+		fmt.eprintln("Failed to create GLSL program")
+		return false
+	}
+
+	g.particle_program, ok = gl.load_shaders_source(
+		particle_vertex_source,
+		particle_fragment_source,
+	)
+	if !ok {
+		fmt.eprintln("Failed to create GLSL program for particles")
+		return false
+	}
+
+	assert(powerups_init(&g.powerups, g.sprite_program, g.projection), "Failed to init powerups")
 	return ok
 }
 game_destroy :: proc(g: ^Game) {
-	defer game_level_destroy(&g.level)
+	game_level_destroy(&g.level)
+	post_processor_destroy(&g.effects)
+	particle_emitter_destroy(&g.ball_sparks)
+	powerups_destroy(&g.powerups)
+	gl.DeleteProgram(g.sprite_program)
+	gl.DeleteProgram(g.particle_program)
 }
 
 run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32) {
 	game_start_tick := time.tick_now()
+
+	// Init OpenGL
+	sdl2.GL_SetAttribute(.CONTEXT_PROFILE_MASK, i32(sdl2.GLprofile.CORE))
+	sdl2.GL_SetAttribute(.CONTEXT_MAJOR_VERSION, 3)
+	sdl2.GL_SetAttribute(.CONTEXT_MINOR_VERSION, 3)
+	gl_context := sdl2.GL_CreateContext(window)
+	defer sdl2.GL_DeleteContext(gl_context)
+	gl.load_up_to(3, 3, sdl2.gl_set_proc_address)
 
 	game: Game
 	game_ok := game_init(&game, int(window_width), int(window_height))
@@ -60,90 +109,44 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	}
 	defer sound_engine_destroy()
 
-	sdl2.GL_SetAttribute(.CONTEXT_PROFILE_MASK, i32(sdl2.GLprofile.CORE))
-	sdl2.GL_SetAttribute(.CONTEXT_MAJOR_VERSION, 3)
-	sdl2.GL_SetAttribute(.CONTEXT_MINOR_VERSION, 3)
-	gl_context := sdl2.GL_CreateContext(window)
-	defer sdl2.GL_DeleteContext(gl_context)
-	gl.load_up_to(3, 3, sdl2.gl_set_proc_address)
-
-	sprite_program, program_ok := gl.load_shaders_source(
-		sprite_vertex_source,
-		sprite_fragment_source,
-	)
-	if !program_ok {
-		fmt.eprintln("Failed to create GLSL program")
-		return
-	}
-	defer gl.DeleteProgram(sprite_program)
-
-	particle_program, program2_ok := gl.load_shaders_source(
-		particle_vertex_source,
-		particle_fragment_source,
-	)
-	if !program2_ok {
-		fmt.eprintln("Failed to create GLSL program for particles")
-		return
-	}
-	defer gl.DeleteProgram(particle_program)
-
-	effects_program, effects_program_ok := gl.load_shaders_source(
-		postprocess_vertex_source,
-		postprocess_fragment_source,
-	)
-	if !effects_program_ok {
-		fmt.eprintln("Failed to create GLSL program for effects")
-		return
-	}
-	defer gl.DeleteProgram(effects_program)
-
 	buffers := sprite_buffers_init()
 	defer sprite_buffers_destroy(&buffers)
 
-	projection: glm.mat4 = glm.mat4Ortho3d(0, f32(window_width), f32(window_height), 0, -1.0, 1)
-	brick_texture := sprite_texture("breakout/textures/block.png", sprite_program, projection)
+	brick_texture := sprite_texture(
+		"breakout/textures/block.png",
+		game.sprite_program,
+		game.projection,
+	)
 	brick_solid_texture := sprite_texture(
 		"breakout/textures/block_solid.png",
-		sprite_program,
-		projection,
+		game.sprite_program,
+		game.projection,
 	)
 	background_texture := sprite_texture(
 		"breakout/textures/background.jpg",
-		sprite_program,
-		projection,
+		game.sprite_program,
+		game.projection,
 	)
-	paddle_texture := sprite_texture("breakout/textures/paddle.png", sprite_program, projection)
-	ball_texture := sprite_texture("breakout/textures/awesomeface.png", sprite_program, projection)
+	paddle_texture := sprite_texture(
+		"breakout/textures/paddle.png",
+		game.sprite_program,
+		game.projection,
+	)
+	ball_texture := sprite_texture(
+		"breakout/textures/awesomeface.png",
+		game.sprite_program,
+		game.projection,
+	)
 	particle_texture := sprite_texture(
 		"breakout/textures/particle2.png",
-		particle_program,
-		projection,
+		game.particle_program,
+		game.projection,
 	)
-	ball_sparks: ParticleEmitter
-	particle_emitter_init(&ball_sparks, 123)
-	defer particle_emitter_destroy(&ball_sparks)
-	// mouse_sparks : ParticleEmitter
-	// particle_emitter_init(&mouse_sparks, 123)
-	// defer particle_emitter_destroy(&mouse_sparks)
 
 	lives_writer: Writer
-	writer_init(&lives_writer, TERMINAL_TTF, 16, projection)
+	writer_init(&lives_writer, TERMINAL_TTF, 16, game.projection)
 	defer writer_destroy(&lives_writer)
 
-
-	paddle: Paddle
-	paddle_init(&paddle, game.window_width, game.window_height)
-
-	ball: Ball
-	ball_init(&ball, paddle.pos, paddle.size)
-
-	powerups: Powerups
-	assert(powerups_init(&powerups, sprite_program, projection), "Failed to init powerups")
-	defer powerups_destroy(&powerups)
-
-	// effects
-	effects: PostProcessor
-	post_processor_init(&effects, effects_program, i32(game.window_width), i32(game.window_height))
 
 	// events
 	assert(event_q_init(), "Failed to init event queue")
@@ -204,102 +207,34 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		if exit {
 			break game_loop
 		}
-
-		// game_update(&game)
+		game_update(&game, dt)
 		// game_draw(&game)
 
-		paddle_update(&paddle, dt, game.window_width, game.is_left, game.is_right)
-		ball_update(&ball, dt, game.window_width, game.window_height)
-		if ball.stuck {
-			ball_stuck_update(&ball, paddle.pos)
-		}
-		collide_info: CollideInfo
-		no_blocks := true
-		for brick, brick_i in game.level.bricks {
-			if brick.destroyed {
-				continue
-			}
-			collide_type: CollideType = .SOLID_BLOCK
-			if !brick.is_solid {
-				collide_type = .BLOCK
-				no_blocks = false
-			}
-			collide_info = check_collision_ball(
-				ball.pos,
-				ball.radius,
-				brick.pos,
-				brick.size,
-				collide_type,
-			)
-			if collide_info.type != .NONE {
-				append(
-					&event_q,
-					EventCollide{type = .BRICK, pos = brick.pos, solid = brick.is_solid},
-				)
-				ball_handle_collision(&ball, collide_info)
-				if !brick.is_solid {
-					game.level.bricks[brick_i].destroyed = true
-				}
-			}
-		}
-		if no_blocks {
-			append(&event_q, EventLevelComplete{})
-		}
-		if !ball.stuck {
-			collide_info = check_collision_ball(
-				ball.pos,
-				ball.radius,
-				paddle.pos,
-				paddle.size,
-				.PADDLE,
-			)
-			if collide_info.type != .NONE {
-				append(&event_q, EventCollide{type = .PADDLE, pos = paddle.pos})
-				ball_handle_paddle_collision(&ball, &paddle, collide_info)
-			}
-		}
-		// update powerups
-		powerups_update(&powerups, dt, game.window_height)
-		for pu, pu_i in powerups.data {
-			if pu.activated || pu.destroyed {
-				continue
-			}
-			collided := check_collision_rect(paddle.pos, paddle.size, pu.pos, pu.size)
-			if collided {
-				append(&event_q, EventCollide{type = .POWERUP, pos = pu.pos})
-				powerups_handle_collision(&powerups, &paddle, pu_i)
-			}
-		}
-		// update particles
-		particle_update(&ball_sparks, dt, ball.pos, ball.velocity, ball.radius * .5)
-		// mouse_pos := get_mouse_pos(i32(game.window_width), i32(game.window_height))
-		// particle_update(&mouse_sparks, dt, glm.vec2(mouse_pos), {0, 0}, {0, 0})
-		post_processor_update(&effects, dt)
 		// handle events
 		for event in event_q {
 			switch e in event {
 			case EventCollide:
-				effects.shake = true
+				game.effects.shake = true
 				pan: f32 = e.pos.x / f32(game.window_width)
 				pan = (pan * 1.8) - .9
 				pitch := rand.float32(&game.rand)
 				switch e.type {
 				case .BRICK:
-					effects.shake_time = 0.05
-					if !e.solid do powerup_spawn(&powerups, e.pos)
+					game.effects.shake_time = 0.05
+					if !e.solid do powerup_spawn(&game.powerups, e.pos)
 					if e.solid {
 						sound_play(.SOLID, 1, pan, (pitch * .2) + .8)
 					} else {
 						sound_play(.BLEEP, 1, pan, (pitch * .2) + .85)
 					}
 				case .PADDLE:
-					if paddle.sticky {
+					if game.paddle.sticky {
 						pitch = 0.5
 					} else {
 						pitch = 1
 					}
 					sound_play(Sound.BLOOP, 1, pan, pitch)
-					effects.shake_time = 0.02
+					game.effects.shake_time = 0.02
 				case .POWERUP:
 					sound_play(.POWERUP, 1, pan, 1)
 				case .WALL:
@@ -308,34 +243,34 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			case EventPowerupActivated:
 				switch e.type {
 				case .SPEED:
-					ball.velocity *= 1.2
+					game.ball.velocity *= 1.2
 				case .STICKY:
-					ball.sticky += 1
-					paddle.sticky = true
+					game.ball.sticky += 1
+					game.paddle.sticky = true
 				case .PASS_THROUGH:
-					ball.pass_through += 1
+					game.ball.pass_through += 1
 				case .PADDLE_SIZE_INCREASE:
-					paddle.size.x += 50
+					game.paddle.size.x += 50
 				case .CONFUSE:
-					effects.confuse = true
+					game.effects.confuse = true
 				case .CHAOS:
-					effects.chaos = true
+					game.effects.chaos = true
 				}
 			case EventPowerupDeactivated:
 				switch e.type {
 				case .SPEED:
-					ball.velocity /= 1.2
+					game.ball.velocity /= 1.2
 				case .STICKY:
-					ball.sticky -= 1
-					paddle.sticky = ball.sticky > 0
+					game.ball.sticky -= 1
+					game.paddle.sticky = game.ball.sticky > 0
 				case .PASS_THROUGH:
-					ball.pass_through -= 1
+					game.ball.pass_through -= 1
 				case .PADDLE_SIZE_INCREASE:
-					paddle.size.x -= 50
+					game.paddle.size.x -= 50
 				case .CONFUSE:
-					effects.confuse = false
+					game.effects.confuse = false
 				case .CHAOS:
-					effects.chaos = false
+					game.effects.chaos = false
 				}
 			case EventLevelComplete:
 				number := game.level.number + 1
@@ -350,11 +285,11 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 					fmt.eprintf("Error loading level %d\n", number)
 					break game_loop
 				}
-				paddle_reset(&paddle)
-				ball_reset(&ball, paddle.pos, paddle.size)
-				clear(&powerups.data)
-				effects.confuse = false
-				effects.chaos = false
+				paddle_reset(&game.paddle)
+				ball_reset(&game.ball, game.paddle.pos, game.paddle.size)
+				clear(&game.powerups.data)
+				game.effects.confuse = false
+				game.effects.chaos = false
 			case EventBallOut:
 				fmt.println("EventBallOut")
 				game.lives -= 1
@@ -362,15 +297,16 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 					// TODO: make game over screen
 					game.lives = 3
 					game_level_reset(&game.level)
-					paddle_reset(&paddle)
-					clear(&powerups.data)
+					paddle_reset(&game.paddle)
+					clear(&game.powerups.data)
 				}
-				ball_reset(&ball, paddle.pos, paddle.size)
-				effects.confuse = false
-				effects.chaos = false
+				ball_reset(&game.ball, game.paddle.pos, game.paddle.size)
+				game.effects.confuse = false
+				game.effects.chaos = false
 			case EventBallReleased:
-				ball.stuck = false
-				ball.stuck_offset = {0, 0}
+				fmt.println("EventBallReleased")
+				game.ball.stuck = false
+				game.ball.stuck_offset = {0, 0}
 			}
 		}
 		clear(&event_q)
@@ -382,11 +318,11 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		gl.Clear(gl.COLOR_BUFFER_BIT)
 		// effects.confuse = true
 		// effects.chaos = true
-		post_processor_begin_render(&effects)
+		post_processor_begin_render(&game.effects)
 
 		// draw background
 		draw_sprite(
-			sprite_program,
+			game.sprite_program,
 			background_texture.id,
 			buffers.vao,
 			{0, 0},
@@ -407,43 +343,48 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			}
 			pos := brick.pos
 			size := brick.size
-			draw_sprite(sprite_program, texture_id, buffers.vao, pos, size, 0, brick.color)
+			draw_sprite(game.sprite_program, texture_id, buffers.vao, pos, size, 0, brick.color)
 		}
 		// draw paddle
 		paddle_color: glm.vec3 = {1, 1, 1}
-		if paddle.sticky {
+		if game.paddle.sticky {
 			paddle_color = {1, .5, 1}
 		}
 		draw_sprite(
-			sprite_program,
+			game.sprite_program,
 			paddle_texture.id,
 			buffers.vao,
-			paddle.pos,
-			paddle.size,
+			game.paddle.pos,
+			game.paddle.size,
 			0,
 			paddle_color,
 		)
 		// draw powerups
-		powerups_render(&powerups, sprite_program, buffers.vao)
+		powerups_render(&game.powerups, game.sprite_program, buffers.vao)
 		// draw particles
-		particles_render(&ball_sparks, particle_program, particle_texture.id, buffers.vao)
+		particles_render(
+			&game.ball_sparks,
+			game.particle_program,
+			particle_texture.id,
+			buffers.vao,
+		)
 		// draw ball
 		ball_color: glm.vec3 = {1, 1, 1}
-		if ball.pass_through > 0 {
+		if game.ball.pass_through > 0 {
 			ball_color = {1, .5, 1}
 		}
 		draw_sprite(
-			sprite_program,
+			game.sprite_program,
 			ball_texture.id,
 			buffers.vao,
-			ball.pos,
-			ball.size,
+			game.ball.pos,
+			game.ball.size,
 			0,
 			ball_color,
 		)
 		// particles_render(&mouse_sparks, particle_program, particle_texture.id, buffers.vao)
-		post_processor_end_render(&effects)
-		post_processor_render(&effects, f32(game_sec_elapsed))
+		post_processor_end_render(&game.effects)
+		post_processor_render(&game.effects, f32(game_sec_elapsed))
 
 		sb: strings.Builder
 		strings.builder_init_len(&sb, 10, context.temp_allocator)
