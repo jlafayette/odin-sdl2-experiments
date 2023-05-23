@@ -63,7 +63,7 @@ game_init :: proc(g: ^Game, width, height: int) -> bool {
 
 	g.projection = glm.mat4Ortho3d(0, f32(width), f32(height), 0, -1.0, 1)
 
-	renderer_init(&g.renderer, g.projection)
+	assert(renderer_init(&g.renderer, g.projection), "Failed to init renderer")
 
 	assert(
 		powerups_init(&g.powerups, g.renderer.shaders.sprite, g.projection),
