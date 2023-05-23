@@ -165,6 +165,7 @@ writer_init :: proc(w: ^Writer, ttf_file: string, height: f32, projection: glm.m
 }
 writer_destroy :: proc(w: ^Writer) {
 	delete(w.chars)
+	gl.DeleteProgram(w.shader_id)
 }
 debug := true
 write_text :: proc(w: ^Writer, text: string, pos: glm.vec2, color: glm.vec3) {

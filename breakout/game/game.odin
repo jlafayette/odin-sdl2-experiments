@@ -25,22 +25,23 @@ GameState :: enum {
 	WIN,
 }
 Game :: struct {
-	state:            GameState,
-	lives:            int,
-	window_width:     int,
-	window_height:    int,
-	rand:             rand.Rand,
-	level:            GameLevel,
-	is_left:          bool,
-	is_right:         bool,
-	ball:             Ball,
-	paddle:           Paddle,
-	effects:          PostProcessor,
-	ball_sparks:      ParticleEmitter,
-	powerups:         Powerups,
-	sprite_program:   u32,
-	particle_program: u32,
-	projection:       glm.mat4,
+	state:         GameState,
+	lives:         int,
+	window_width:  int,
+	window_height: int,
+	rand:          rand.Rand,
+	sec_elapsed:   f64,
+	level:         GameLevel,
+	is_left:       bool,
+	is_right:      bool,
+	ball:          Ball,
+	paddle:        Paddle,
+	effects:       PostProcessor,
+	ball_sparks:   ParticleEmitter,
+	powerups:      Powerups,
+	projection:    glm.mat4,
+	renderer:      Renderer,
+	lives_writer:  Writer,
 }
 game_init :: proc(g: ^Game, width, height: int) -> bool {
 	g.state = .ACTIVE // TODO: start in main menu
@@ -61,22 +62,16 @@ game_init :: proc(g: ^Game, width, height: int) -> bool {
 	particle_emitter_init(&g.ball_sparks, 123)
 
 	g.projection = glm.mat4Ortho3d(0, f32(width), f32(height), 0, -1.0, 1)
-	g.sprite_program, ok = gl.load_shaders_source(sprite_vertex_source, sprite_fragment_source)
-	if !ok {
-		fmt.eprintln("Failed to create GLSL program")
-		return false
-	}
 
-	g.particle_program, ok = gl.load_shaders_source(
-		particle_vertex_source,
-		particle_fragment_source,
+	renderer_init(&g.renderer, g.projection)
+
+	assert(
+		powerups_init(&g.powerups, g.renderer.shaders.sprite, g.projection),
+		"Failed to init powerups",
 	)
-	if !ok {
-		fmt.eprintln("Failed to create GLSL program for particles")
-		return false
-	}
 
-	assert(powerups_init(&g.powerups, g.sprite_program, g.projection), "Failed to init powerups")
+	writer_init(&g.lives_writer, TERMINAL_TTF, 16, g.projection)
+
 	return ok
 }
 game_destroy :: proc(g: ^Game) {
@@ -84,8 +79,8 @@ game_destroy :: proc(g: ^Game) {
 	post_processor_destroy(&g.effects)
 	particle_emitter_destroy(&g.ball_sparks)
 	powerups_destroy(&g.powerups)
-	gl.DeleteProgram(g.sprite_program)
-	gl.DeleteProgram(g.particle_program)
+	writer_destroy(&g.lives_writer)
+	renderer_destroy(&g.renderer)
 }
 
 run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32) {
@@ -108,44 +103,6 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		return
 	}
 	defer sound_engine_destroy()
-
-	buffers := sprite_buffers_init()
-	defer sprite_buffers_destroy(&buffers)
-
-	brick_texture := sprite_texture(
-		"breakout/textures/block.png",
-		game.sprite_program,
-		game.projection,
-	)
-	brick_solid_texture := sprite_texture(
-		"breakout/textures/block_solid.png",
-		game.sprite_program,
-		game.projection,
-	)
-	background_texture := sprite_texture(
-		"breakout/textures/background.jpg",
-		game.sprite_program,
-		game.projection,
-	)
-	paddle_texture := sprite_texture(
-		"breakout/textures/paddle.png",
-		game.sprite_program,
-		game.projection,
-	)
-	ball_texture := sprite_texture(
-		"breakout/textures/awesomeface.png",
-		game.sprite_program,
-		game.projection,
-	)
-	particle_texture := sprite_texture(
-		"breakout/textures/particle2.png",
-		game.particle_program,
-		game.projection,
-	)
-
-	lives_writer: Writer
-	writer_init(&lives_writer, TERMINAL_TTF, 16, game.projection)
-	defer writer_destroy(&lives_writer)
 
 
 	// events
@@ -178,7 +135,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		// fmt.printf("dt: %f\n", dt)
 		// fmt.printf("tgt dt: %f\n", target_dt)
 		game_duration := time.tick_since(game_start_tick)
-		game_sec_elapsed := time.duration_seconds(game_duration)
+		game.sec_elapsed = time.duration_seconds(game_duration)
 
 		// debug time tracking
 		when DEBUG_FPS {
@@ -208,7 +165,6 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 			break game_loop
 		}
 		game_update(&game, dt)
-		// game_draw(&game)
 
 		// handle events
 		for event in event_q {
@@ -311,88 +267,7 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 		}
 		clear(&event_q)
 
-		// render
-		gl.Viewport(0, 0, window_width, window_height)
-		// matches edges of background image (this shows when screen shakes)
-		gl.ClearColor(0.007843, 0.02353, 0.02745, 1)
-		gl.Clear(gl.COLOR_BUFFER_BIT)
-		// effects.confuse = true
-		// effects.chaos = true
-		post_processor_begin_render(&game.effects)
-
-		// draw background
-		draw_sprite(
-			game.sprite_program,
-			background_texture.id,
-			buffers.vao,
-			{0, 0},
-			{f32(game.window_width), f32(game.window_height)},
-			0,
-			{1, 1, 1},
-		)
-		// draw level
-		for brick in game.level.bricks {
-			if brick.destroyed {
-				continue
-			}
-			texture_id: u32
-			if brick.is_solid {
-				texture_id = brick_solid_texture.id
-			} else {
-				texture_id = brick_texture.id
-			}
-			pos := brick.pos
-			size := brick.size
-			draw_sprite(game.sprite_program, texture_id, buffers.vao, pos, size, 0, brick.color)
-		}
-		// draw paddle
-		paddle_color: glm.vec3 = {1, 1, 1}
-		if game.paddle.sticky {
-			paddle_color = {1, .5, 1}
-		}
-		draw_sprite(
-			game.sprite_program,
-			paddle_texture.id,
-			buffers.vao,
-			game.paddle.pos,
-			game.paddle.size,
-			0,
-			paddle_color,
-		)
-		// draw powerups
-		powerups_render(&game.powerups, game.sprite_program, buffers.vao)
-		// draw particles
-		particles_render(
-			&game.ball_sparks,
-			game.particle_program,
-			particle_texture.id,
-			buffers.vao,
-		)
-		// draw ball
-		ball_color: glm.vec3 = {1, 1, 1}
-		if game.ball.pass_through > 0 {
-			ball_color = {1, .5, 1}
-		}
-		draw_sprite(
-			game.sprite_program,
-			ball_texture.id,
-			buffers.vao,
-			game.ball.pos,
-			game.ball.size,
-			0,
-			ball_color,
-		)
-		// particles_render(&mouse_sparks, particle_program, particle_texture.id, buffers.vao)
-		post_processor_end_render(&game.effects)
-		post_processor_render(&game.effects, f32(game_sec_elapsed))
-
-		sb: strings.Builder
-		strings.builder_init_len(&sb, 10, context.temp_allocator)
-		fmt.sbprintf(&sb, "Lives: %d", game.lives)
-		write_text(&lives_writer, strings.to_string(sb), {10, 10}, {1, 1, 1})
-
-		gl_report_error()
-		sdl2.GL_SwapWindow(window)
+		game_render(&game, window)
 
 		// timing (avoid looping too fast)
 		duration := time.tick_since(start_tick)
