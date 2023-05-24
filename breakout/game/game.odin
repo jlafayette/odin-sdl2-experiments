@@ -43,36 +43,33 @@ Game :: struct {
 	renderer:      Renderer,
 	lives_writer:  Writer,
 }
-game_init :: proc(g: ^Game, width, height: int) -> bool {
-	g.state = .ACTIVE // TODO: start in main menu
+game_init :: proc(g: ^Game, width, height: int) {
+	g.state = .MENU // TODO: start in main menu
 	g.lives = 3
 	g.window_width = width
 	g.window_height = height
 	rand.init(&g.rand, 214)
-	ok := game_level_load(&g.level, 1, width, height / 2)
-	if !ok do return false
+	g.projection = glm.mat4Ortho3d(0, f32(width), f32(height), 0, -1.0, 1)
+
+	assert(game_level_load(&g.level, 1, width, height / 2), "Failed to load level")
+
 	paddle_init(&g.paddle, width, height)
 	ball_init(&g.ball, g.paddle.pos, g.paddle.size)
 
-	effects: PostProcessor
-	ok = post_processor_init(&effects, i32(g.window_width), i32(g.window_height))
-	assert(ok)
-	g.effects = effects
-
+	assert(
+		post_processor_init(&g.effects, i32(g.window_width), i32(g.window_height)),
+		"Failed to init post processor effects",
+	)
 	particle_emitter_init(&g.ball_sparks, 123)
-
-	g.projection = glm.mat4Ortho3d(0, f32(width), f32(height), 0, -1.0, 1)
-
 	assert(renderer_init(&g.renderer, g.projection), "Failed to init renderer")
-
 	assert(
 		powerups_init(&g.powerups, g.renderer.shaders.sprite, g.projection),
 		"Failed to init powerups",
 	)
-
-	writer_init(&g.lives_writer, TERMINAL_TTF, 16, g.projection)
-
-	return ok
+	assert(
+		writer_init(&g.lives_writer, TERMINAL_TTF, 16, g.projection),
+		"Failed to init text writer",
+	)
 }
 game_destroy :: proc(g: ^Game) {
 	game_level_destroy(&g.level)
@@ -95,15 +92,13 @@ run :: proc(window: ^sdl2.Window, window_width, window_height, refresh_rate: i32
 	gl.load_up_to(3, 3, sdl2.gl_set_proc_address)
 
 	game: Game
-	game_ok := game_init(&game, int(window_width), int(window_height))
-	assert(game_ok)
+	game_init(&game, int(window_width), int(window_height))
 
 	sound_ok := sound_engine_init()
 	if !sound_ok {
 		return
 	}
 	defer sound_engine_destroy()
-
 
 	// events
 	assert(event_q_init(), "Failed to init event queue")
