@@ -1,1 +1,3 @@
-textures downloaded from https://learnopengl.com/In-Practice/2D-Game/Breakout
+textures by Joey de Vries https://twitter.com/JoeyDeVriez
+  licensed CC BY 4.0
+  downloaded from https://learnopengl.com/In-Practice/2D-Game/Breakout
