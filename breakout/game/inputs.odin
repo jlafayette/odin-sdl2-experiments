@@ -16,9 +16,24 @@ game_handle_inputs :: proc(g: ^Game) -> bool {
 		case .KEYDOWN:
 			#partial switch event.key.keysym.sym {
 			case .SPACE:
-				append(&event_q, EventBallReleased{})
-			case .X:
-				append(&event_q, EventLevelComplete{})
+				if g.state == .ACTIVE {
+					append(&event_q, EventBallReleased{})
+
+				}
+			// case .X:
+			// 	append(&event_q, EventLevelComplete{})
+			case .W:
+				if g.state == .MENU {
+					append(&event_q, EventLevelSelect{dir = .NEXT})
+				}
+			case .S:
+				if g.state == .MENU {
+					append(&event_q, EventLevelSelect{dir = .PREV})
+				}
+			case .RETURN:
+				if g.state == .MENU {
+					append(&event_q, EventGameStateChange{state = .ACTIVE})
+				}
 			}
 		}
 	}

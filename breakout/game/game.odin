@@ -42,6 +42,7 @@ Game :: struct {
 	projection:    glm.mat4,
 	renderer:      Renderer,
 	lives_writer:  Writer,
+	menu_writer:   Writer,
 }
 game_init :: proc(g: ^Game, width, height: int) {
 	g.state = .MENU // TODO: start in main menu
@@ -70,6 +71,10 @@ game_init :: proc(g: ^Game, width, height: int) {
 		writer_init(&g.lives_writer, TERMINAL_TTF, 16, g.projection),
 		"Failed to init text writer",
 	)
+	assert(
+		writer_init(&g.menu_writer, TERMINAL_TTF, 24, g.projection),
+		"Failed to init text writer",
+	)
 }
 game_destroy :: proc(g: ^Game) {
 	game_level_destroy(&g.level)
@@ -77,6 +82,7 @@ game_destroy :: proc(g: ^Game) {
 	particle_emitter_destroy(&g.ball_sparks)
 	powerups_destroy(&g.powerups)
 	writer_destroy(&g.lives_writer)
+	writer_destroy(&g.menu_writer)
 	renderer_destroy(&g.renderer)
 }
 

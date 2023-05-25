@@ -26,9 +26,11 @@ level_one_file: string = filepath.join({"breakout", "levels", "one.lvl"})
 level_two_file: string = filepath.join({"breakout", "levels", "two.lvl"})
 level_three_file: string = filepath.join({"breakout", "levels", "three.lvl"})
 level_four_file: string = filepath.join({"breakout", "levels", "four.lvl"})
+LEVEL_COUNT :: 4
 
 game_level_load :: proc(level: ^GameLevel, number, width, height: int) -> bool {
-	file := level_one_file
+	fmt.printf("Loading level %d\n", number)
+	file: string
 	switch number {
 	case 0:
 		file = level_t_file
@@ -49,7 +51,7 @@ game_level_load :: proc(level: ^GameLevel, number, width, height: int) -> bool {
 	tiles, row_len, row_count, ok := game_level_load_from_file(file)
 	if !ok do return false
 	defer delete(tiles)
-	fmt.printf("%d x %d\n", row_len, row_count)
+	// fmt.printf("%d x %d\n", row_len, row_count)
 	game_level_init(level, tiles[:], row_len, row_count, width, height)
 	level.number = number
 	return true

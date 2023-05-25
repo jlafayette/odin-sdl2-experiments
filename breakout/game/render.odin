@@ -155,10 +155,27 @@ game_render :: proc(g: ^Game, window: ^sdl2.Window) {
 	post_processor_end_render(&game.effects)
 	post_processor_render(&game.effects, f32(game.sec_elapsed))
 
+	// Text rendering
 	sb: strings.Builder
 	strings.builder_init_len(&sb, 10, context.temp_allocator)
 	fmt.sbprintf(&sb, "Lives: %d", game.lives)
 	write_text(&g.lives_writer, strings.to_string(sb), {10, 10}, {1, 1, 1})
+
+
+	if game.state == .MENU {
+		writer := &g.menu_writer
+
+		center: glm.vec2 = {f32(game.window_width) / 2, f32(game.window_height) / 2}
+		line1 := "Press ENTER to start"
+		dim1 := text_get_size(writer, line1)
+		pos1: glm.vec2 = {center.x - dim1.x * .5, center.y + f32(writer.line_gap)}
+		write_text(writer, line1, pos1, {1, 1, 1})
+
+		line2 := "Press W or S to select level"
+		dim2 := text_get_size(writer, line2)
+		pos2: glm.vec2 = {center.x - dim2.x * .5, pos1.y + dim1.y + f32(writer.line_gap)}
+		write_text(writer, line2, pos2, .75)
+	}
 
 	gl_report_error()
 	sdl2.GL_SwapWindow(window)

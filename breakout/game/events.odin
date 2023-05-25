@@ -27,6 +27,16 @@ EventPowerupDeactivated :: struct {
 EventBallOut :: struct {}
 EventLevelComplete :: struct {}
 EventBallReleased :: struct {}
+EventGameStateChange :: struct {
+	state: GameState,
+}
+LevelSelectDir :: enum {
+	NEXT,
+	PREV,
+}
+EventLevelSelect :: struct {
+	dir: LevelSelectDir,
+}
 
 Event :: union {
 	EventCollide,
@@ -35,6 +45,8 @@ Event :: union {
 	EventBallOut,
 	EventLevelComplete,
 	EventBallReleased,
+	EventGameStateChange,
+	EventLevelSelect,
 }
 
 event_q: [dynamic]Event
@@ -111,22 +123,29 @@ game_handle_events :: proc(game: ^Game) -> bool {
 			}
 		case EventLevelComplete:
 			number := game.level.number + 1
-			load_ok := game_level_load(
-				&game.level,
-				number,
-				game.window_width,
-				game.window_height / 2,
-			)
+			load_ok := game_level_change(game, number)
 			// TODO: make game compeleted screen
 			if !load_ok {
-				fmt.eprintf("Error loading level %d\n", number)
 				return false
 			}
-			paddle_reset(&game.paddle)
-			ball_reset(&game.ball, game.paddle.pos, game.paddle.size)
-			clear(&game.powerups.data)
-			game.effects.confuse = false
-			game.effects.chaos = false
+		case EventLevelSelect:
+			number: int
+			switch e.dir {
+			case .NEXT:
+				number = game.level.number + 1
+				if number > LEVEL_COUNT {
+					number = 1
+				}
+			case .PREV:
+				number = game.level.number - 1
+				if number < 1 {
+					number = LEVEL_COUNT
+				}
+			}
+			load_ok := game_level_change(game, number)
+			if !load_ok {
+				return false
+			}
 		case EventBallOut:
 			fmt.println("EventBallOut")
 			game.lives -= 1
@@ -144,8 +163,25 @@ game_handle_events :: proc(game: ^Game) -> bool {
 			fmt.println("EventBallReleased")
 			game.ball.stuck = false
 			game.ball.stuck_offset = {0, 0}
+		case EventGameStateChange:
+			fmt.printf("Game state changed from %v to %v\n", game.state, e.state)
+			game.state = e.state
 		}
 	}
 	clear(&event_q)
+	return true
+}
+
+game_level_change :: proc(game: ^Game, number: int) -> bool {
+	ok := game_level_load(&game.level, number, game.window_width, game.window_height / 2)
+	if !ok {
+		fmt.eprintf("Error loading level %d\n", number)
+		return false
+	}
+	paddle_reset(&game.paddle)
+	ball_reset(&game.ball, game.paddle.pos, game.paddle.size)
+	clear(&game.powerups.data)
+	game.effects.confuse = false
+	game.effects.chaos = false
 	return true
 }
