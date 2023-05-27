@@ -122,11 +122,8 @@ game_handle_events :: proc(game: ^Game) -> bool {
 				game.effects.chaos = false
 			}
 		case EventLevelComplete:
-			number := game.level.number + 1
-			load_ok := game_level_change(game, number)
-			// TODO: make game compeleted screen
-			if !load_ok {
-				return false
+			if game.state == .ACTIVE {
+				game.state = .WIN
 			}
 		case EventLevelSelect:
 			number: int
@@ -147,24 +144,31 @@ game_handle_events :: proc(game: ^Game) -> bool {
 				return false
 			}
 		case EventBallOut:
-			fmt.println("EventBallOut")
-			game.lives -= 1
-			if game.lives <= 0 {
-				// TODO: make game over screen
-				game.lives = 3
-				game_level_reset(&game.level)
-				paddle_reset(&game.paddle)
-				clear(&game.powerups.data)
+			if game.state == .ACTIVE {
+				game.lives -= 1
 			}
-			ball_reset(&game.ball, game.paddle.pos, game.paddle.size)
-			game.effects.confuse = false
-			game.effects.chaos = false
+			if game.lives <= 0 {
+				game.state = .LOSE
+			} else {
+				ball_reset(&game.ball, game.paddle.pos, game.paddle.size)
+				game.effects.confuse = false
+				game.effects.chaos = false
+			}
 		case EventBallReleased:
 			fmt.println("EventBallReleased")
 			game.ball.stuck = false
 			game.ball.stuck_offset = {0, 0}
 		case EventGameStateChange:
 			fmt.printf("Game state changed from %v to %v\n", game.state, e.state)
+			if game.state == .LOSE && e.state == .MENU {
+				game.lives = 3
+				game_level_reset(&game.level)
+				paddle_reset(&game.paddle)
+				clear(&game.powerups.data)
+				ball_reset(&game.ball, game.paddle.pos, game.paddle.size)
+				game.effects.confuse = false
+				game.effects.chaos = false
+			}
 			game.state = e.state
 		}
 	}

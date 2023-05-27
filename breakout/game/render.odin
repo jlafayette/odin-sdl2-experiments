@@ -162,7 +162,9 @@ game_render :: proc(g: ^Game, window: ^sdl2.Window) {
 	write_text(&g.lives_writer, strings.to_string(sb), {10, 10}, {1, 1, 1})
 
 
-	if game.state == .MENU {
+	switch game.state {
+	case .ACTIVE:
+	case .MENU:
 		writer := &g.menu_writer
 
 		center: glm.vec2 = {f32(game.window_width) / 2, f32(game.window_height) / 2}
@@ -175,7 +177,34 @@ game_render :: proc(g: ^Game, window: ^sdl2.Window) {
 		dim2 := text_get_size(writer, line2)
 		pos2: glm.vec2 = {center.x - dim2.x * .5, pos1.y + dim1.y + f32(writer.line_gap)}
 		write_text(writer, line2, pos2, .75)
+	case .WIN:
+		writer := &g.menu_writer
+
+		center: glm.vec2 = {f32(game.window_width) / 2, f32(game.window_height) / 2}
+		line1 := "You WON!!!"
+		dim1 := text_get_size(writer, line1)
+		pos1: glm.vec2 = {center.x - dim1.x * .5, center.y + f32(writer.line_gap)}
+		write_text(writer, line1, pos1, {1, 1, 1})
+
+		line2 := "Press ENTER to retry or ESC to quit"
+		dim2 := text_get_size(writer, line2)
+		pos2: glm.vec2 = {center.x - dim2.x * .5, pos1.y + dim1.y + f32(writer.line_gap)}
+		write_text(writer, line2, pos2, .75)
+	case .LOSE:
+		writer := &g.menu_writer
+
+		center: glm.vec2 = {f32(game.window_width) / 2, f32(game.window_height) / 2}
+		line1 := "You lost :("
+		dim1 := text_get_size(writer, line1)
+		pos1: glm.vec2 = {center.x - dim1.x * .5, center.y + f32(writer.line_gap)}
+		write_text(writer, line1, pos1, {1, 1, 1})
+
+		line2 := "Press ENTER to retry or ESC to quit"
+		dim2 := text_get_size(writer, line2)
+		pos2: glm.vec2 = {center.x - dim2.x * .5, pos1.y + dim1.y + f32(writer.line_gap)}
+		write_text(writer, line2, pos2, .75)
 	}
+
 
 	gl_report_error()
 	sdl2.GL_SwapWindow(window)

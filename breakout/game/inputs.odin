@@ -14,25 +14,27 @@ game_handle_inputs :: proc(g: ^Game) -> bool {
 				sdl2.PushEvent(&sdl2.Event{type = .QUIT})
 			}
 		case .KEYDOWN:
-			#partial switch event.key.keysym.sym {
-			case .SPACE:
-				if g.state == .ACTIVE {
+			switch g.state {
+			case .ACTIVE:
+				if event.key.keysym.sym == .SPACE {
 					append(&event_q, EventBallReleased{})
-
 				}
-			// case .X:
-			// 	append(&event_q, EventLevelComplete{})
-			case .W:
-				if g.state == .MENU {
+			case .MENU:
+				#partial switch event.key.keysym.sym {
+				case .W:
 					append(&event_q, EventLevelSelect{dir = .NEXT})
-				}
-			case .S:
-				if g.state == .MENU {
+				case .S:
 					append(&event_q, EventLevelSelect{dir = .PREV})
-				}
-			case .RETURN:
-				if g.state == .MENU {
+				case .RETURN:
 					append(&event_q, EventGameStateChange{state = .ACTIVE})
+				}
+			case .WIN:
+				if event.key.keysym.sym == .RETURN {
+					append(&event_q, EventGameStateChange{state = .MENU})
+				}
+			case .LOSE:
+				if event.key.keysym.sym == .RETURN {
+					append(&event_q, EventGameStateChange{state = .MENU})
 				}
 			}
 		}

@@ -23,6 +23,7 @@ GameState :: enum {
 	ACTIVE,
 	MENU,
 	WIN,
+	LOSE,
 }
 Game :: struct {
 	state:         GameState,
@@ -45,7 +46,7 @@ Game :: struct {
 	menu_writer:   Writer,
 }
 game_init :: proc(g: ^Game, width, height: int) {
-	g.state = .MENU // TODO: start in main menu
+	g.state = .MENU
 	g.lives = 3
 	g.window_width = width
 	g.window_height = height
