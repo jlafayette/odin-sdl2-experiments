@@ -52,10 +52,11 @@ Event :: union {
 event_q: [dynamic]Event
 
 event_q_init :: proc() -> bool {
-	return reserve_dynamic_array(&event_q, 10)
+	err := reserve(&event_q, 10)
+	return err == .None
 }
 event_q_destroy :: proc() {
-	delete_dynamic_array(event_q)
+	delete(event_q)
 }
 
 game_handle_events :: proc(game: ^Game) -> bool {

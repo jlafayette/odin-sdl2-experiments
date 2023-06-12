@@ -47,7 +47,8 @@ Powerups :: struct {
 	texture_ids: [6]u32,
 }
 powerups_init :: proc(p: ^Powerups, program_id: u32, projection: glm.mat4) -> bool {
-	ok := reserve_dynamic_array(&p.data, 20)
+	err := reserve(&p.data, 20)
+	ok := err == .None
 	rand.init(&p.rand, 987)
 	for i := 0; i < len(p.texture_ids); i += 1 {
 		tex := sprite_texture(powerup_textures[i], program_id, projection)

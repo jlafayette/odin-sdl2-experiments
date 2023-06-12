@@ -8,13 +8,18 @@ Game-dev experiments using [Odin](https://odin-lang.org/) and [SDL2](https://www
 
 ## Project setup
 
-This copies all the .dll files required from the Odin vendor library to this
-project directory. This is required for Windows, not sure about other platforms
-yet.
+For Windows, run the setup script to copy the required .dll files from the Odin
+vendor library into this project directory.
 
 ```sh
 odin build setup/setup.odin -file
 ./setup
+```
+
+For linux (tested on Debian), you will need to install the dependencies:
+```sh
+sudo apt-get install libsdl2-dev
+sudo apt-get install libsdl2-ttf-dev
 ```
 
 ## Running the launcher

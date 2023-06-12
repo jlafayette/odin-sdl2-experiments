@@ -67,6 +67,9 @@ sound_load :: proc(type: Sound, sound: ^ma.sound) -> bool {
 }
 
 sound_engine_init :: proc() -> bool {
+	when ODIN_OS != .Windows {
+		return true
+	}
 	result := ma.engine_init(nil, &_engine)
 	if result != ma.result.SUCCESS {
 		fmt.eprintf("Unable to initialize audio engine: %v\n", result)
@@ -83,6 +86,9 @@ sound_engine_init :: proc() -> bool {
 	return true
 }
 sound_engine_destroy :: proc() {
+	when ODIN_OS != .Windows {
+		return
+	}
 	for items in _sounds {
 		delete(items)
 	}
@@ -93,12 +99,18 @@ sound_engine_destroy :: proc() {
 }
 
 music_play :: proc(music: Sound) {
+	when ODIN_OS != .Windows {
+		return
+	}
 	s: ^ma.sound = &_sounds[music][0].sound
 	ma.sound_set_looping(s, true)
 	ma.sound_start(s)
 }
 
 sound_play :: proc(sound: Sound, volume: f32 = 1, pan: f32 = 0, pitch: f32 = 1) {
+	when ODIN_OS != .Windows {
+		return
+	}
 	result: ma.result
 
 	// First try to use a sound that is not currently playing
