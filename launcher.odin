@@ -378,6 +378,13 @@ State :: struct {
 	ui_refresh_options: UiRefreshOptions,
 }
 
+LaunchCmd :: enum {
+	Noop,
+	DynamicText,
+	ShaderTest,
+	Triangulation,
+}
+
 init_state :: proc(state: ^State, display_count: i32) {
 	init_ui_display_options(&state.ui_display_options, display_count)
 	init_ui_res_options(&state.ui_res_options, 0)
@@ -482,8 +489,28 @@ _main :: proc() {
 
 	start: f64
 	end: f64
+	cmd: LaunchCmd = .Noop
 
 	game_loop: for {
+
+		switch cmd {
+		case .Noop:
+		case .DynamicText:
+			launch(state_get_launch_settings(&state))
+		case .ShaderTest:
+			launch_shader(state_get_launch_settings(&state))
+		case .Triangulation:
+			launch_triangulation(state_get_launch_settings(&state))
+		}
+		if cmd != .Noop {
+			// The mouse up event gets taken by the launched window,
+			// so we need to add it here so that mu doesn't think the
+			// mouse button is still down.
+			mu.input_mouse_up(&mu_ctx, 0, 0, .LEFT)
+			cmd = .Noop
+			continue
+		}
+
 		start = get_time()
 
 		event: sdl2.Event
@@ -538,7 +565,7 @@ _main :: proc() {
 		update_state(&state)
 
 		mu.begin(&mu_ctx)
-		mu_update(&mu_ctx, &win, &state)
+		cmd = mu_update(&mu_ctx, &win, &state)
 		mu.end(&mu_ctx)
 
 		render(&mu_ctx, renderer, atlas_texture)
@@ -569,19 +596,22 @@ get_time :: proc() -> f64 {
 	return f64(sdl2.GetPerformanceCounter()) * 1000 / f64(sdl2.GetPerformanceFrequency())
 }
 
-mu_update :: proc(ctx: ^mu.Context, win: ^WindowSettings, state: ^State) {
+mu_update :: proc(ctx: ^mu.Context, win: ^WindowSettings, state: ^State) -> LaunchCmd {
 	@(static)
 	opts := mu.Options{.NO_CLOSE, .NO_TITLE, .NO_RESIZE, .ALIGN_CENTER}
+
+	cmd: LaunchCmd = .Noop
+
 	if mu.window(ctx, "Launcher", {0, 0, win.w, win.h}, opts) {
 		mu.layout_row(ctx, {-1})
 		if .SUBMIT in mu.button(ctx, "Dynamic Text") {
-			launch(state_get_launch_settings(state))
+			cmd = .DynamicText
 		}
 		if .SUBMIT in mu.button(ctx, "Shader Test") {
-			launch_shader(state_get_launch_settings(state))
+			cmd = .ShaderTest
 		}
 		if .SUBMIT in mu.button(ctx, "Triangulation") {
-			launch_triangulation(state_get_launch_settings(state))
+			cmd = .Triangulation
 		}
 		mu.layout_row(ctx, {75, 40, 40, 40, 40})
 		mu.label(ctx, "Displays:")
@@ -619,6 +649,7 @@ mu_update :: proc(ctx: ^mu.Context, win: ^WindowSettings, state: ^State) {
 			)
 		}
 	}
+	return cmd
 }
 
 _r :: #force_inline proc(r: mu.Rect) -> sdl2.Rect {
