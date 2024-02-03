@@ -445,7 +445,7 @@ _main :: proc() {
 		sdl2.WINDOWPOS_UNDEFINED_DISPLAY(active_display),
 		win.w,
 		win.h,
-		{.SHOWN},
+		{},
 	)
 	assert(window != nil, sdl2.GetErrorString())
 	defer sdl2.DestroyWindow(window)
@@ -685,7 +685,7 @@ launch :: proc(win: WindowSettings) {
 		sdl2.WINDOWPOS_UNDEFINED_DISPLAY(win.display_index),
 		win.w,
 		win.h,
-		{.SHOWN, .FULLSCREEN, .ALLOW_HIGHDPI},
+		{.ALLOW_HIGHDPI},
 	)
 	assert(window != nil, sdl2.GetErrorString())
 	defer sdl2.DestroyWindow(window)
@@ -715,7 +715,7 @@ launch_shader :: proc(win: WindowSettings) {
 		sdl2.WINDOWPOS_UNDEFINED_DISPLAY(win.display_index),
 		win.w,
 		win.h,
-		{.SHOWN, .FULLSCREEN, .ALLOW_HIGHDPI, .OPENGL},
+		{.ALLOW_HIGHDPI, .OPENGL},
 	)
 	assert(window != nil, sdl2.GetErrorString())
 	defer sdl2.DestroyWindow(window)
@@ -745,7 +745,7 @@ launch_triangulation :: proc(win: WindowSettings) {
 		sdl2.WINDOWPOS_UNDEFINED_DISPLAY(win.display_index),
 		win.w,
 		win.h,
-		{.OPENGL},
+		{.ALLOW_HIGHDPI, .OPENGL},
 	)
 	assert(window != nil, sdl2.GetErrorString())
 	defer sdl2.DestroyWindow(window)
