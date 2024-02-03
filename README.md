@@ -13,7 +13,7 @@ vendor library into this project directory.
 
 ```sh
 odin build setup/setup.odin -file
-./setup
+./setup.exe
 ```
 
 For linux (tested on Debian), you will need to install the dependencies:
@@ -28,7 +28,7 @@ This allows launching some of the other examples after setting which monitor
 they should open on, and what resolution and refresh rate to use.
 
 ```sh
-odin run .
+odin run launcher.odin -file -o:speed
 ```
 
 ## Running standalone examples
