@@ -1,80 +1,16 @@
 package launcher
 
 import "core:c"
-import "core:mem"
 import "core:fmt"
 import "core:math"
+import "core:mem"
 import "core:time"
-import "vendor:sdl2"
 import mu "vendor:microui"
+import "vendor:sdl2"
 
-import "dynamic_text"
-import "shader"
-import "triangulation"
-
-when ODIN_OS == .Windows {
-	import win32 "core:sys/windows"
-}
-
-rect_overlap_area :: proc(a, b: ^sdl2.Rect) -> int {
-	if sdl2.HasIntersection(a, b) {
-		result: sdl2.Rect
-		sdl2.IntersectRect(a, b, &result)
-		return int(result.w * result.h)
-	}
-	return 0
-}
-
-get_active_display_index :: proc() -> c.int {
-	mf_win := sdl2.GetMouseFocus()
-	fmt.println("mouse focus:", mf_win)
-	kf_win := sdl2.GetKeyboardFocus()
-	fmt.println("keyboard focus:", kf_win)
-	// These are both <nil> :(
-
-	foreground_rect_found := false
-	foreground_rect: sdl2.Rect
-	when ODIN_OS == .Windows {
-		fmt.println("running on windows")
-		rect: win32.RECT
-		handle := win32.GetForegroundWindow()
-		err := win32.GetWindowRect(handle, &rect)
-		fmt.println("handle:", handle, "rect:", rect, "error:", err)
-		if err {
-			// It errors with 6 (The handle is invalid), but the rect gets the
-			// right values, so it seems to have worked?
-			fmt.println("Error getting window rect", win32.GetLastError())
-		}
-		foreground_rect_found = true
-		foreground_rect.x = rect.left
-		foreground_rect.y = rect.top
-		foreground_rect.w = rect.right - rect.left
-		foreground_rect.h = rect.bottom - rect.top
-	}
-	if !foreground_rect_found {
-		return 0
-	}
-	fmt.println("foreground rect:", foreground_rect)
-
-	// Check which display contains the window with focus
-	display_count := sdl2.GetNumVideoDisplays()
-	active: c.int = 0
-	max_overlap := 0
-	for i: c.int = 0; i < display_count; i += 1 {
-		rect: sdl2.Rect
-		err := sdl2.GetDisplayBounds(i, &rect)
-		if err != 0 do continue
-		fmt.println(i, rect)
-		overlap_area := rect_overlap_area(&rect, &foreground_rect)
-		fmt.printf("monitor %d has overlap of %d\n", i, overlap_area)
-		if overlap_area > max_overlap {
-			active = i
-			max_overlap = overlap_area
-		}
-	}
-	return active
-}
-
+import "../dynamic_text"
+import "../shader"
+import "../triangulation"
 
 WindowSettings :: struct {
 	w:             i32,
@@ -415,7 +351,7 @@ state_get_launch_settings :: proc(state: ^State) -> WindowSettings {
 	refresh := state.ui_refresh_options.values[state.ui_refresh_options.sel]
 	display_index := state.ui_display_options.sel
 	return(
-		WindowSettings{
+		WindowSettings {
 			w = res.w,
 			h = res.h,
 			refresh_rate = refresh.v,
@@ -444,7 +380,11 @@ _main :: proc() {
 	}
 	target_dt: f64 = 1000 / f64(win.refresh_rate)
 
-	active_display := get_active_display_index()
+	when ODIN_OS == .Windows {
+		active_display := get_active_display_index()
+	} else {
+		active_display := 0
+	}
 
 	window := sdl2.CreateWindow(
 		"Laucher",
@@ -685,11 +625,11 @@ render :: proc(ctx: ^mu.Context, renderer: ^sdl2.Renderer, atlas_texture: ^sdl2.
 		case ^mu.Command_Text:
 			dst := sdl2.Rect{cmd.pos.x, cmd.pos.y, 0, 0}
 			for ch in cmd.str do if ch & 0xc0 != 0x80 {
-					r := min(int(ch), 127)
-					src := mu.default_atlas[mu.DEFAULT_ATLAS_FONT + r]
-					render_texture(renderer, atlas_texture, src, &dst, cmd.color)
-					dst.x += dst.w
-				}
+				r := min(int(ch), 127)
+				src := mu.default_atlas[mu.DEFAULT_ATLAS_FONT + r]
+				render_texture(renderer, atlas_texture, src, &dst, cmd.color)
+				dst.x += dst.w
+			}
 		case ^mu.Command_Rect:
 			sdl2.SetRenderDrawColor(renderer, cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a)
 			r := _r(cmd.rect)

@@ -6,6 +6,8 @@ Game-dev experiments using [Odin](https://odin-lang.org/) and [SDL2](https://www
 
 - [Odin](https://odin-lang.org/)
 
+Tested with Odin version: dev-2024-02:4e300ff90
+
 ## Project setup
 
 For Windows, run the setup script to copy the required .dll files from the Odin
@@ -28,7 +30,7 @@ This allows launching some of the other examples after setting which monitor
 they should open on, and what resolution and refresh rate to use.
 
 ```sh
-odin run launcher.odin -file -o:speed
+odin run launcher -o:speed
 ```
 
 ## Running standalone examples
